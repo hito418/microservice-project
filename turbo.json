@@ -1,0 +1,28 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "tasks": {
+        "build": {
+            "dependsOn": ["^build"],
+            "inputs": ["src/**", "tsconfig.json", "vite.config.ts"],
+            "outputs": ["dist/**"]
+        },
+        "dev": {
+            "persistent": true
+        },
+        "lint": {
+            "inputs": ["src/**"]
+        },
+        "format": {
+            "inputs": ["src/**"]
+        },
+        "test": {
+            "inputs": ["src/**", "vitest.config.ts"]
+        },
+        "typecheck": {
+            "inputs": ["src/**", "tsconfig.json"]
+        }
+    },
+    "remoteCache": {
+        "enabled": false
+    }
+}

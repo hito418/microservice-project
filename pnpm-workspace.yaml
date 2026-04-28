@@ -1,0 +1,9 @@
+packages:
+    - services/*
+    - packages/*
+    - toolings/*
+
+catalog:
+    typescript: ^5.8.2
+    oxlint: ^1.1.0
+    pg: ^8.14.1
