@@ -17,9 +17,12 @@
     },
     "devDependencies": {
         "@repo/ts-config": "workspace:*",
+        "@repo/oxfmt-config": "workspace:*",
+        "@repo/oxlint-config": "workspace:*",
         "@types/node": "^22.0.0",
-        "ts-node-dev": "^2.0.0",
         "@nestjs/cli": "11.0.21",
-        "typescript": "catalog:"
+        "typescript": "catalog:",
+        "oxlint": "catalog:",
+        "oxfmt": "catalog:"
     }
 }

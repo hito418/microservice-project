@@ -6,4 +6,13 @@ packages:
 catalog:
     typescript: ^5.8.2
     oxlint: ^1.1.0
-    pg: ^8.14.1
+    oxfmt: ^0.47.0
+
+    # nest
+    "@nestjs/common": ^11.0.0
+    "@nestjs/core": ^11.0.0
+    "@nestjs/microservices": ^11.0.0
+    "@nestjs/platform-fastify": ^11.0.0
+    "@nestjs/cli": 11.0.21
+    reflect-metadata: ^0.2.2
+    rxjs: ^7.8.1
