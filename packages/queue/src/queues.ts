@@ -12,7 +12,7 @@ export const DEFAULT_JOB_OPTIONS: JobsOptions = {
     attempts: 3,
     backoff: { type: 'exponential', delay: 5_000 },
     removeOnComplete: { age: 24 * 3600, count: 1000 },
-    removeOnFail: { age: 7 * 24 * 3600 },
+    removeOnFail: { age: 7 * 24 * 3600, count: 5000 },
 };
 
 export const FINALIZATION_DELAY_MS = 20 * 60 * 1000;
