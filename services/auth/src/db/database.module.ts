@@ -1,5 +1,4 @@
 import {
-    Global,
     Inject,
     Logger,
     Module,
@@ -28,7 +27,6 @@ function buildPool(): Pool {
     });
 }
 
-@Global()
 @Module({
     providers: [
         {
