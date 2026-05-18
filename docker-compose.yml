@@ -10,6 +10,8 @@ services:
             - FIBONACCI_PORT=3001
             - SCORING_HOST=scoring
             - SCORING_PORT=4002
+            - AUTH_GRPC_HOST=auth
+            - AUTH_GRPC_PORT=50051
         ports:
             - 3000:3000
     fibonacci:

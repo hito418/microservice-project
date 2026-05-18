@@ -1,3 +1,7 @@
+import {
+    AUTH_PROTO_PATH,
+    AUTH_V1_PACKAGE_NAME,
+} from "@contracts/auth";
 import { Module } from "@nestjs/common";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { GatewayController } from "./gateway.controller";
@@ -6,6 +10,9 @@ const FIBONACCI_HOST = process.env.FIBONACCI_HOST ?? "127.0.0.1";
 const FIBONACCI_PORT = Number(process.env.FIBONACCI_PORT ?? 4001);
 const SCORING_HOST = process.env.SCORING_HOST ?? "127.0.0.1";
 const SCORING_PORT = Number(process.env.SCORING_PORT ?? 4002);
+
+const AUTH_GRPC_HOST = process.env.AUTH_GRPC_HOST ?? "127.0.0.1";
+const AUTH_GRPC_PORT = Number(process.env.AUTH_GRPC_PORT ?? 50051);
 
 @Module({
     imports: [
@@ -19,6 +26,15 @@ const SCORING_PORT = Number(process.env.SCORING_PORT ?? 4002);
                 name: "SCORING_SERVICE",
                 transport: Transport.TCP,
                 options: { host: SCORING_HOST, port: SCORING_PORT },
+            },
+            {
+                name: "AUTH_CLIENT",
+                transport: Transport.GRPC,
+                options: {
+                    package: AUTH_V1_PACKAGE_NAME,
+                    protoPath: AUTH_PROTO_PATH,
+                    url: `${AUTH_GRPC_HOST}:${AUTH_GRPC_PORT}`,
+                },
             },
         ]),
     ],

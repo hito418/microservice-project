@@ -15,12 +15,16 @@
         "test": "nest build && node --test \"dist/**/*.spec.js\""
     },
     "dependencies": {
+        "@contracts/auth": "workspace:*",
+        "@grpc/grpc-js": "catalog:",
+        "@grpc/proto-loader": "catalog:",
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
         "@nestjs/microservices": "catalog:",
         "@nestjs/platform-fastify": "catalog:",
         "reflect-metadata": "catalog:",
-        "rxjs": "catalog:"
+        "rxjs": "catalog:",
+        "zod": "catalog:"
     },
     "devDependencies": {
         "@repo/ts-config": "workspace:*",

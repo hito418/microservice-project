@@ -245,6 +245,15 @@ importers:
 
   services/gateway:
     dependencies:
+      '@contracts/auth':
+        specifier: workspace:*
+        version: link:../../contracts/auth
+      '@grpc/grpc-js':
+        specifier: 'catalog:'
+        version: 1.14.3
+      '@grpc/proto-loader':
+        specifier: 'catalog:'
+        version: 0.7.15
       '@nestjs/common':
         specifier: 'catalog:'
         version: 11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -263,6 +272,9 @@ importers:
       rxjs:
         specifier: 'catalog:'
         version: 7.8.2
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@nestjs/cli':
         specifier: 'catalog:'
