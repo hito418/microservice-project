@@ -19,3 +19,18 @@ services:
             - FIBONACCI_PORT=3001
         ports:
             - 3001:3001
+    redis:
+        image: redis:7-alpine
+        command: ["redis-server", "--appendonly", "yes"]
+        volumes:
+            - redis-data:/data
+        ports:
+            - 127.0.0.1:6379:6379
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
+
+volumes:
+    redis-data:
