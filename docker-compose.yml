@@ -19,3 +19,42 @@ services:
             - FIBONACCI_PORT=3001
         ports:
             - 3001:3001
+    redis:
+        image: redis:7-alpine
+        ports:
+            - 6379:6379
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
+    runner-replay-analysis:
+        build:
+            context: .
+            dockerfile: services/runner-replay-analysis/Dockerfile
+        environment:
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        depends_on:
+            redis:
+                condition: service_healthy
+    runner-finalization:
+        build:
+            context: .
+            dockerfile: services/runner-finalization/Dockerfile
+        environment:
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        depends_on:
+            redis:
+                condition: service_healthy
+    runner-room-cleanup:
+        build:
+            context: .
+            dockerfile: services/runner-room-cleanup/Dockerfile
+        environment:
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        depends_on:
+            redis:
+                condition: service_healthy

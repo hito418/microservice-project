@@ -1,0 +1,30 @@
+{
+    "name": "@services/runner-finalization",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/main.js",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "nest build",
+        "dev": "nest build --watch",
+        "start": "node dist/main.js"
+    },
+    "dependencies": {
+        "@nestjs/bullmq": "^11.0.2",
+        "@nestjs/common": "^11.0.0",
+        "@nestjs/core": "^11.0.0",
+        "@repo/queue": "workspace:*",
+        "bullmq": "^5.34.0",
+        "reflect-metadata": "^0.2.2",
+        "rxjs": "^7.8.1"
+    },
+    "devDependencies": {
+        "@nestjs/cli": "11.0.21",
+        "@repo/ts-config": "workspace:*",
+        "@types/node": "^22.0.0",
+        "ts-node-dev": "^2.0.0",
+        "typescript": "catalog:"
+    }
+}
