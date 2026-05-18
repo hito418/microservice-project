@@ -1,9 +1,6 @@
 {
-    "extends": "@repo/ts-config/base.json",
+    "extends": "@repo/ts-config/node.json",
     "compilerOptions": {
-        "module": "CommonJS",
-        "moduleResolution": "Node",
-        "target": "ES2022",
         "outDir": "./dist",
         "rootDir": "./src",
         "composite": true,
