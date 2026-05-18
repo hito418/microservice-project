@@ -3,7 +3,7 @@ import { ConnectionOptions } from 'bullmq';
 const DEFAULT_PORT = 6379;
 
 export function redisConnectionFromEnv(): ConnectionOptions {
-    const host = process.env.REDIS_HOST ?? '127.0.0.1';
+    const host = process.env.REDIS_HOST || '127.0.0.1';
     const port = parsePort(process.env.REDIS_PORT, DEFAULT_PORT);
     const password = process.env.REDIS_PASSWORD || undefined;
     return {
