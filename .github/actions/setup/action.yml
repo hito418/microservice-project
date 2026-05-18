@@ -1,0 +1,22 @@
+name: Setup workspace
+description: Install pnpm + Node, restore deps, and prime the turbo cache.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - uses: actions/cache@v4
+      with:
+        path: .turbo/cache
+        key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+        restore-keys: |
+          turbo-${{ runner.os }}-${{ github.job }}-
