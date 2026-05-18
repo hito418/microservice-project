@@ -12,12 +12,13 @@
         "dev": "tsc -b --watch",
         "typecheck": "tsc -b --noEmit"
     },
-    "dependencies": {
+    "peerDependencies": {
         "bullmq": "^5.34.0"
     },
     "devDependencies": {
         "@repo/ts-config": "workspace:*",
         "@types/node": "^22.0.0",
+        "bullmq": "^5.34.0",
         "typescript": "catalog:"
     }
 }
