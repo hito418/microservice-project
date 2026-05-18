@@ -28,3 +28,13 @@ services:
             interval: 5s
             timeout: 3s
             retries: 5
+    runner-finalization:
+        build:
+            context: .
+            dockerfile: services/runner-finalization/Dockerfile
+        environment:
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        depends_on:
+            redis:
+                condition: service_healthy
