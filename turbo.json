@@ -16,9 +16,11 @@
             "inputs": ["src/**"]
         },
         "test": {
+            "dependsOn": ["^proto:gen"],
             "inputs": ["src/**", "vitest.config.ts"]
         },
         "typecheck": {
+            "dependsOn": ["^proto:gen"],
             "inputs": ["src/**", "tsconfig.json"]
         },
         "proto:gen": {
