@@ -8,6 +8,8 @@ services:
             - GATEWAY_PORT=3000
             - FIBONACCI_HOST=fibonacci
             - FIBONACCI_PORT=3001
+            - SCORING_HOST=scoring
+            - SCORING_PORT=4002
         ports:
             - 3000:3000
     fibonacci:
@@ -19,6 +21,15 @@ services:
             - FIBONACCI_PORT=3001
         ports:
             - 3001:3001
+    scoring:
+        build:
+            context: .
+            dockerfile: services/scoring/Dockerfile
+        environment:
+            - SCORING_HOST=0.0.0.0
+            - SCORING_PORT=4002
+        ports:
+            - 4002:4002
     redis:
         image: redis:7-alpine
         command: ["redis-server", "--appendonly", "yes"]

@@ -1,5 +1,5 @@
 {
-    "name": "@services/gateway",
+    "name": "@services/scoring",
     "version": "1.0.0",
     "private": true,
     "main": "dist/main.js",
@@ -18,7 +18,6 @@
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
         "@nestjs/microservices": "catalog:",
-        "@nestjs/platform-fastify": "catalog:",
         "reflect-metadata": "catalog:",
         "rxjs": "catalog:"
     },
