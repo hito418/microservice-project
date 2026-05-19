@@ -4,6 +4,7 @@ import {
 } from "@contracts/auth";
 import { Module } from "@nestjs/common";
 import { ClientsModule, Transport } from "@nestjs/microservices";
+import { AuthController } from "./auth/auth.controller";
 import { GatewayController } from "./gateway.controller";
 
 const FIBONACCI_HOST = process.env.FIBONACCI_HOST ?? "127.0.0.1";
@@ -38,6 +39,6 @@ const AUTH_GRPC_PORT = Number(process.env.AUTH_GRPC_PORT ?? 50051);
             },
         ]),
     ],
-    controllers: [GatewayController],
+    controllers: [GatewayController, AuthController],
 })
 export class AppModule {}
