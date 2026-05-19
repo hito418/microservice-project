@@ -22,7 +22,7 @@
         "@grpc/proto-loader": "catalog:",
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
-        "@nestjs/jwt": "catalog:",
+        "@nestjs/jwt": "^11.0.0",
         "@nestjs/microservices": "catalog:",
         "@repo/common": "workspace:*",
         "bcryptjs": "catalog:",
