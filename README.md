@@ -6,7 +6,7 @@ A small NestJS microservices monorepo managed with pnpm and Turborepo.
 
 - **gateway** — HTTP entry point on port `3000`, forwards requests to internal services.
 - **fibonacci** — Computes Fibonacci numbers, exposed on port `3001`.
-- **auth** — User signup / login, JWT issuance. HTTP on port `3002`, backed by PostgreSQL.
+- **auth** — User signup / login, JWT issuance. NestJS microservice (gRPC transport) on port `50051`, backed by PostgreSQL. Wire contract lives in `@contracts/auth` (`.proto` + zod schemas + typed client interface).
 
 ## Layout
 

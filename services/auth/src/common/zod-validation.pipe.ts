@@ -1,4 +1,6 @@
-import { BadRequestException, PipeTransform } from '@nestjs/common';
+import { status } from '@grpc/grpc-js';
+import { PipeTransform } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import type { ZodSchema } from 'zod';
 
 export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
@@ -7,9 +9,10 @@ export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
     transform(value: unknown): T {
         const result = this.schema.safeParse(value);
         if (!result.success) {
-            throw new BadRequestException({
+            throw new RpcException({
+                code: status.INVALID_ARGUMENT,
                 message: 'validation failed',
-                issues: result.error.issues,
+                details: result.error.issues,
             });
         }
         return result.data;

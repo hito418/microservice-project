@@ -1,20 +1,28 @@
+import { AUTH_PROTO_PATH, AUTH_V1_PACKAGE_NAME } from '@contracts/auth';
 import { NestFactory } from '@nestjs/core';
 import {
-    FastifyAdapter,
-    NestFastifyApplication,
-} from '@nestjs/platform-fastify';
+    type GrpcOptions,
+    type MicroserviceOptions,
+    Transport,
+} from '@nestjs/microservices';
 import { AppModule } from './app.module';
 
-const HOST = process.env.AUTH_HOST ?? '127.0.0.1';
-const PORT = Number(process.env.AUTH_PORT ?? 3002);
+const HOST = process.env.AUTH_GRPC_HOST ?? '127.0.0.1';
+const PORT = Number(process.env.AUTH_GRPC_PORT ?? 50051);
+
+const grpcOptions: GrpcOptions['options'] = {
+    package: AUTH_V1_PACKAGE_NAME,
+    protoPath: AUTH_PROTO_PATH,
+    url: `${HOST}:${PORT}`,
+};
 
 async function bootstrap() {
-    const app = await NestFactory.create<NestFastifyApplication>(
+    const app = await NestFactory.createMicroservice<MicroserviceOptions>(
         AppModule,
-        new FastifyAdapter(),
+        { transport: Transport.GRPC, options: grpcOptions },
     );
-    await app.listen(PORT, HOST);
-    console.log(`auth HTTP (fastify) listening on http://${HOST}:${PORT}`);
+    await app.listen();
+    console.log(`auth gRPC microservice listening on ${HOST}:${PORT}`);
 }
 
 bootstrap();

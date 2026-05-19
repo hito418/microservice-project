@@ -1,4 +1,5 @@
-import { ConflictException } from '@nestjs/common';
+import { status } from '@grpc/grpc-js';
+import { RpcException } from '@nestjs/microservices';
 import * as bcrypt from 'bcryptjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserRow } from '../db/database.types';
@@ -48,13 +49,13 @@ describe('AuthService.signup', () => {
         expect(result).toEqual({
             id: 'user-1',
             email: 'alice@example.com',
-            createdAt: new Date('2026-01-01T00:00:00Z'),
+            createdAt: '2026-01-01T00:00:00.000Z',
         });
         expect(result).not.toHaveProperty('password_hash');
         expect(result).not.toHaveProperty('passwordHash');
     });
 
-    it('rejects duplicate emails with ConflictException', async () => {
+    it('rejects duplicate emails with RpcException(ALREADY_EXISTS)', async () => {
         vi.mocked(users.findByEmail).mockResolvedValue({
             id: 'existing',
             email: 'alice@example.com',
@@ -63,12 +64,20 @@ describe('AuthService.signup', () => {
             updated_at: new Date(),
         } as UserRow);
 
-        await expect(
-            service.signup({
+        try {
+            await service.signup({
                 email: 'alice@example.com',
                 password: 'correct horse battery',
-            }),
-        ).rejects.toBeInstanceOf(ConflictException);
+            });
+            expect.fail('expected RpcException');
+        } catch (err) {
+            expect(err).toBeInstanceOf(RpcException);
+            const error = (err as RpcException).getError() as {
+                code: number;
+                message: string;
+            };
+            expect(error.code).toBe(status.ALREADY_EXISTS);
+        }
 
         expect(users.insert).not.toHaveBeenCalled();
     });

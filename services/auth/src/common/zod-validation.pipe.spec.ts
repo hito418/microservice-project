@@ -1,4 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
+import { status } from '@grpc/grpc-js';
+import { RpcException } from '@nestjs/microservices';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ZodValidationPipe } from './zod-validation.pipe';
@@ -24,10 +25,19 @@ describe('ZodValidationPipe', () => {
         });
     });
 
-    it('throws BadRequestException on invalid input', () => {
-        expect(() =>
-            pipe.transform({ email: 'nope', password: 'short' }),
-        ).toThrow(BadRequestException);
+    it('throws RpcException(INVALID_ARGUMENT) on invalid input', () => {
+        try {
+            pipe.transform({ email: 'nope', password: 'short' });
+            expect.fail('expected RpcException');
+        } catch (err) {
+            expect(err).toBeInstanceOf(RpcException);
+            const error = (err as RpcException).getError() as {
+                code: number;
+                message: string;
+            };
+            expect(error.code).toBe(status.INVALID_ARGUMENT);
+            expect(error.message).toBe('validation failed');
+        }
     });
 
     it('rejects unknown fields (strict)', () => {
@@ -37,6 +47,6 @@ describe('ZodValidationPipe', () => {
                 password: 'hunter22!',
                 role: 'admin',
             }),
-        ).toThrow(BadRequestException);
+        ).toThrow(RpcException);
     });
 });

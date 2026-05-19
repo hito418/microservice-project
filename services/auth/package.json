@@ -17,9 +17,12 @@
         "db:migrate": "drizzle-kit migrate"
     },
     "dependencies": {
+        "@contracts/auth": "workspace:*",
+        "@grpc/grpc-js": "catalog:",
+        "@grpc/proto-loader": "catalog:",
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
-        "@nestjs/platform-fastify": "catalog:",
+        "@nestjs/microservices": "catalog:",
         "bcryptjs": "catalog:",
         "drizzle-orm": "catalog:",
         "kysely": "catalog:",

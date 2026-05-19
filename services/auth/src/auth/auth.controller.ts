@@ -1,17 +1,23 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+    type AuthServiceController,
+    AuthServiceControllerMethods,
+    type SignupRequest,
+    type SignupResponse,
+    signupSchema,
+} from '@contracts/auth';
+import { Controller } from '@nestjs/common';
+import { Payload } from '@nestjs/microservices';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { AuthService, type PublicUser } from './auth.service';
-import { type SignupDto, signupSchema } from './dto/signup.dto';
+import { AuthService } from './auth.service';
 
-@Controller('auth')
-export class AuthController {
+@Controller()
+@AuthServiceControllerMethods()
+export class AuthController implements AuthServiceController {
     constructor(private readonly authService: AuthService) {}
 
-    @Post('signup')
-    @HttpCode(HttpStatus.CREATED)
     signup(
-        @Body(new ZodValidationPipe(signupSchema)) dto: SignupDto,
-    ): Promise<PublicUser> {
-        return this.authService.signup(dto);
+        @Payload(new ZodValidationPipe(signupSchema)) data: SignupRequest,
+    ): Promise<SignupResponse> {
+        return this.authService.signup(data);
     }
 }

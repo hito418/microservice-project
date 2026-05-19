@@ -15,5 +15,10 @@
     "packageManager": "pnpm@10.33.2",
     "dependencies": {
         "turbo": "^2.9.6"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "grpc-tools"
+        ]
     }
 }

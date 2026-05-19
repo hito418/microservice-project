@@ -1,26 +1,25 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import type { SignupRequest, SignupResponse } from '@contracts/auth';
+import { status } from '@grpc/grpc-js';
+import { Injectable } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import * as bcrypt from 'bcryptjs';
 import { UsersRepository } from '../users/users.repository';
-import { SignupDto } from './dto/signup.dto';
 
 const BCRYPT_ROUNDS = 12;
-
-export interface PublicUser {
-    id: string;
-    email: string;
-    createdAt: Date;
-}
 
 @Injectable()
 export class AuthService {
     constructor(private readonly users: UsersRepository) {}
 
-    async signup({ email, password }: SignupDto): Promise<PublicUser> {
+    async signup({ email, password }: SignupRequest): Promise<SignupResponse> {
         const normalizedEmail = email.trim().toLowerCase();
 
         const existing = await this.users.findByEmail(normalizedEmail);
         if (existing) {
-            throw new ConflictException('email already registered');
+            throw new RpcException({
+                code: status.ALREADY_EXISTS,
+                message: 'email already registered',
+            });
         }
 
         const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -33,7 +32,7 @@ export class AuthService {
         return {
             id: saved.id,
             email: saved.email,
-            createdAt: saved.created_at,
+            createdAt: saved.created_at.toISOString(),
         };
     }
 }
