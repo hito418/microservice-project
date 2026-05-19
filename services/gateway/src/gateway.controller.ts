@@ -1,17 +1,17 @@
 import {
     BadRequestException,
-    Body,
     Controller,
-    Get,
     HttpException,
-    HttpStatus,
+    Get,
     Inject,
     Param,
     ParseIntPipe,
     Post,
     UseGuards,
+    Body,
+    HttpStatus,
 } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { type ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import type { AuthenticatedUser } from './auth/authenticated-user';
 import { AuthUserGuard } from './auth/auth-user.guard';

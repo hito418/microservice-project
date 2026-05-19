@@ -10,6 +10,8 @@ services:
             - FIBONACCI_PORT=3001
             - SCORING_HOST=scoring
             - SCORING_PORT=4002
+            - AUTH_GRPC_HOST=auth
+            - AUTH_GRPC_PORT=50051
         ports:
             - 3000:3000
     fibonacci:
@@ -30,6 +32,38 @@ services:
             - SCORING_PORT=4002
         ports:
             - 4002:4002
+    auth:
+        build:
+            context: .
+            dockerfile: services/auth/Dockerfile
+        environment:
+            - AUTH_GRPC_HOST=0.0.0.0
+            - AUTH_GRPC_PORT=50051
+            - AUTH_DB_HOST=auth-db
+            - AUTH_DB_PORT=5432
+            - AUTH_DB_USER=auth
+            - AUTH_DB_PASSWORD=auth
+            - AUTH_DB_NAME=auth
+        depends_on:
+            auth-db:
+                condition: service_healthy
+        ports:
+            - 50051:50051
+    auth-db:
+        image: postgres:16-alpine
+        environment:
+            - POSTGRES_USER=auth
+            - POSTGRES_PASSWORD=auth
+            - POSTGRES_DB=auth
+        volumes:
+            - auth-db-data:/var/lib/postgresql/data
+        ports:
+            - 127.0.0.1:5432:5432
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U auth -d auth"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
     redis:
         image: redis:7-alpine
         command: ["redis-server", "--appendonly", "yes"]
@@ -45,3 +79,4 @@ services:
 
 volumes:
     redis-data:
+    auth-db-data:

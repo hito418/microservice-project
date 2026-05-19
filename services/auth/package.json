@@ -1,5 +1,5 @@
 {
-    "name": "@services/gateway",
+    "name": "@services/auth",
     "version": "1.0.0",
     "private": true,
     "main": "dist/main.js",
@@ -8,11 +8,13 @@
     ],
     "scripts": {
         "build": "nest build",
-        "dev": "nest build --watch",
+        "dev": "nest start --watch",
         "start": "node dist/main.js",
         "lint": "oxlint",
         "typecheck": "tsc --noEmit",
-        "test": "nest build && node --test \"dist/**/*.spec.js\""
+        "test": "vitest run",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate"
     },
     "dependencies": {
         "@contracts/auth": "workspace:*",
@@ -21,19 +23,26 @@
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
         "@nestjs/microservices": "catalog:",
-        "@nestjs/platform-fastify": "catalog:",
+        "bcryptjs": "catalog:",
+        "drizzle-orm": "catalog:",
+        "kysely": "catalog:",
+        "pg": "catalog:",
         "reflect-metadata": "catalog:",
         "rxjs": "catalog:",
         "zod": "catalog:"
     },
     "devDependencies": {
-        "@repo/ts-config": "workspace:*",
+        "@nestjs/cli": "catalog:",
         "@repo/oxfmt-config": "workspace:*",
         "@repo/oxlint-config": "workspace:*",
+        "@repo/ts-config": "workspace:*",
+        "@types/bcryptjs": "^2.4.6",
         "@types/node": "^22.0.0",
-        "@nestjs/cli": "catalog:",
-        "typescript": "catalog:",
+        "@types/pg": "^8.11.10",
+        "drizzle-kit": "catalog:",
+        "oxfmt": "catalog:",
         "oxlint": "catalog:",
-        "oxfmt": "catalog:"
+        "typescript": "catalog:",
+        "vitest": "catalog:"
     }
 }

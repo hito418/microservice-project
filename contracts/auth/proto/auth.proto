@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package auth.v1;
+
+service AuthService {
+    rpc Signup (SignupRequest) returns (SignupResponse);
+}
+
+message SignupRequest {
+    string email = 1;
+    string password = 2;
+}
+
+message SignupResponse {
+    string id = 1;
+    string email = 2;
+    // RFC 3339 / ISO 8601
+    string created_at = 3;
+}
