@@ -16,6 +16,8 @@
     },
     "dependencies": {
         "@contracts/auth": "workspace:*",
+        "@fastify/cookie": "catalog:",
+        "fastify": "^5.0.0",
         "@grpc/grpc-js": "catalog:",
         "@grpc/proto-loader": "catalog:",
         "@nestjs/common": "catalog:",

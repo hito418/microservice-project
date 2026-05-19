@@ -10,6 +10,7 @@ services:
             - SCORING_PORT=4002
             - AUTH_GRPC_HOST=auth
             - AUTH_GRPC_PORT=50051
+            - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
         ports:
             - 3000:3000
     scoring:

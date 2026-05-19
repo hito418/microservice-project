@@ -2,7 +2,6 @@ import {
     AUTH_SERVICE_NAME,
     type AuthServiceClient,
     type LoginRequest,
-    type LoginResponse,
     loginSchema,
     type SignupRequest,
     type SignupResponse,
@@ -21,11 +20,14 @@ import {
     Logger,
     OnModuleInit,
     Post,
+    Res,
     UnauthorizedException,
 } from '@nestjs/common';
 import { type ClientGrpc } from '@nestjs/microservices';
 import { ZodHttpValidationPipe } from '@repo/common/pipes';
+import { type FastifyReply } from 'fastify';
 import { firstValueFrom } from 'rxjs';
+import { resolveAuthCookieConfig } from './auth-cookie';
 
 interface GrpcError {
     code?: number;
@@ -33,9 +35,16 @@ interface GrpcError {
     message?: string;
 }
 
+interface LoginBody {
+    userId: string;
+    role: string;
+    expiresIn: number;
+}
+
 @Controller('auth')
 export class AuthController implements OnModuleInit {
     private readonly logger = new Logger(AuthController.name);
+    private readonly cookieConfig = resolveAuthCookieConfig();
     private auth!: AuthServiceClient;
 
     constructor(
@@ -67,15 +76,31 @@ export class AuthController implements OnModuleInit {
     @HttpCode(HttpStatus.OK)
     async login(
         @Body(new ZodHttpValidationPipe(loginSchema)) dto: LoginRequest,
-    ): Promise<LoginResponse> {
+        @Res({ passthrough: true }) reply: FastifyReply,
+    ): Promise<LoginBody> {
         this.logger.debug(`login requested email=${dto.email}`);
+        let result;
         try {
-            const result = await firstValueFrom(this.auth.login(dto));
-            this.logger.debug(`login ok userId=${result.userId} role=${result.role}`);
-            return result;
+            result = await firstValueFrom(this.auth.login(dto));
         } catch (err) {
             throw this.mapLoginError(err, dto.email);
         }
+
+        reply.setCookie(this.cookieConfig.name, result.accessToken, {
+            httpOnly: true,
+            secure: this.cookieConfig.secure,
+            sameSite: this.cookieConfig.sameSite,
+            path: this.cookieConfig.path,
+            maxAge: result.expiresIn,
+        });
+
+        this.logger.debug(`login ok userId=${result.userId} role=${result.role}`);
+
+        return {
+            userId: result.userId,
+            role: result.role,
+            expiresIn: result.expiresIn,
+        };
     }
 
     private mapSignupError(err: unknown, email: string): Error {

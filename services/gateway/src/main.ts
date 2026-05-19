@@ -1,3 +1,4 @@
+import fastifyCookie from '@fastify/cookie';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -13,6 +14,7 @@ async function bootstrap() {
         new FastifyAdapter(),
         { logger: resolveLogLevels() },
     );
+    await app.register(fastifyCookie);
     await app.listen(PORT, HOST);
     new Logger('Bootstrap').log(
         `gateway HTTP (fastify) listening on http://${HOST}:${PORT}`,
