@@ -2,7 +2,7 @@ import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { ZodValidationPipe } from './zod-validation.pipe';
+import { ZodRpcValidationPipe } from './zod-rpc-validation.pipe';
 
 const schema = z
     .object({
@@ -11,8 +11,8 @@ const schema = z
     })
     .strict();
 
-describe('ZodValidationPipe', () => {
-    const pipe = new ZodValidationPipe(schema);
+describe('ZodRpcValidationPipe', () => {
+    const pipe = new ZodRpcValidationPipe(schema);
 
     it('returns parsed value with transforms applied', () => {
         const out = pipe.transform({

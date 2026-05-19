@@ -1,0 +1,44 @@
+{
+    "name": "@repo/common",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./pipes": {
+            "types": "./dist/pipes/index.d.ts",
+            "default": "./dist/pipes/index.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch",
+        "typecheck": "tsc -b --noEmit",
+        "test": "vitest run"
+    },
+    "peerDependencies": {
+        "@grpc/grpc-js": "catalog:",
+        "@nestjs/common": "catalog:",
+        "@nestjs/microservices": "catalog:",
+        "zod": "catalog:"
+    },
+    "devDependencies": {
+        "@grpc/grpc-js": "catalog:",
+        "@nestjs/common": "catalog:",
+        "@nestjs/microservices": "catalog:",
+        "@repo/ts-config": "workspace:*",
+        "@types/node": "^22.0.0",
+        "reflect-metadata": "catalog:",
+        "rxjs": "catalog:",
+        "typescript": "catalog:",
+        "vitest": "catalog:",
+        "zod": "catalog:"
+    }
+}

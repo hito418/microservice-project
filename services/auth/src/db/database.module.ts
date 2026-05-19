@@ -5,6 +5,7 @@ import {
     type OnApplicationShutdown,
     type OnModuleInit,
 } from '@nestjs/common';
+import { parsePort } from '@repo/common';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Kysely, PostgresDialect } from 'kysely';
@@ -20,7 +21,7 @@ const MIGRATIONS_FOLDER = join(__dirname, 'migrations');
 function buildPool(): Pool {
     return new Pool({
         host: process.env.AUTH_DB_HOST ?? '127.0.0.1',
-        port: Number(process.env.AUTH_DB_PORT ?? 5432),
+        port: parsePort('AUTH_DB_PORT', 5432),
         user: process.env.AUTH_DB_USER ?? 'auth',
         password: process.env.AUTH_DB_PASSWORD ?? 'auth',
         database: process.env.AUTH_DB_NAME ?? 'auth',

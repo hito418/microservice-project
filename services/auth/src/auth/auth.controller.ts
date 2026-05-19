@@ -7,7 +7,7 @@ import {
 } from '@contracts/auth';
 import { Controller } from '@nestjs/common';
 import { Payload } from '@nestjs/microservices';
-import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { ZodRpcValidationPipe } from '@repo/common/pipes';
 import { AuthService } from './auth.service';
 
 @Controller()
@@ -16,7 +16,7 @@ export class AuthController implements AuthServiceController {
     constructor(private readonly authService: AuthService) {}
 
     signup(
-        @Payload(new ZodValidationPipe(signupSchema)) data: SignupRequest,
+        @Payload(new ZodRpcValidationPipe(signupSchema)) data: SignupRequest,
     ): Promise<SignupResponse> {
         return this.authService.signup(data);
     }

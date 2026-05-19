@@ -1,0 +1,11 @@
+{
+    "extends": "@repo/ts-config/node.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "composite": true,
+        "declaration": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["src/**/*.spec.ts", "node_modules", "dist"]
+}
