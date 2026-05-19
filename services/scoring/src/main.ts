@@ -5,7 +5,7 @@ import { parsePort, resolveLogLevels } from '@repo/common';
 import { AppModule } from './app.module';
 
 const HOST = process.env.SCORING_HOST ?? '127.0.0.1';
-const PORT = parsePort(process.env.SCORING_PORT, 4002);
+const PORT = parsePort('SCORING_PORT', 4002);
 
 async function bootstrap() {
     const app = await NestFactory.createMicroservice<MicroserviceOptions>(

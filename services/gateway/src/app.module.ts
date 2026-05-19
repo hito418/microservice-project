@@ -9,10 +9,10 @@ import { AuthController } from "./auth/auth.controller";
 import { GatewayController } from "./gateway.controller";
 
 const SCORING_HOST = process.env.SCORING_HOST ?? "127.0.0.1";
-const SCORING_PORT = parsePort(process.env.SCORING_PORT, 4002);
+const SCORING_PORT = parsePort('SCORING_PORT', 4002);
 
 const AUTH_GRPC_HOST = process.env.AUTH_GRPC_HOST ?? "127.0.0.1";
-const AUTH_GRPC_PORT = parsePort(process.env.AUTH_GRPC_PORT, 50051);
+const AUTH_GRPC_PORT = parsePort('AUTH_GRPC_PORT', 50051);
 
 @Module({
     imports: [

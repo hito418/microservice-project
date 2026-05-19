@@ -7,7 +7,7 @@ import {
 } from '@contracts/auth';
 import { Controller } from '@nestjs/common';
 import { Payload } from '@nestjs/microservices';
-import { ZodRpcValidationPipe } from '@repo/common';
+import { ZodRpcValidationPipe } from '@repo/common/pipes';
 import { AuthService } from './auth.service';
 
 @Controller()

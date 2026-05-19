@@ -5,7 +5,7 @@ import { parsePort, resolveLogLevels } from '@repo/common';
 import { AppModule } from './app.module';
 
 const HOST = process.env.GATEWAY_HOST ?? '127.0.0.1';
-const PORT = parsePort(process.env.GATEWAY_PORT, 3000);
+const PORT = parsePort('GATEWAY_PORT', 3000);
 
 async function bootstrap() {
     const app = await NestFactory.create<NestFastifyApplication>(

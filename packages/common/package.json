@@ -4,6 +4,16 @@
     "private": true,
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./pipes": {
+            "types": "./dist/pipes/index.d.ts",
+            "default": "./dist/pipes/index.js"
+        }
+    },
     "files": [
         "dist"
     ],

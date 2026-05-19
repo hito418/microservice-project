@@ -20,7 +20,7 @@ import {
     Post,
 } from '@nestjs/common';
 import { type ClientGrpc } from '@nestjs/microservices';
-import { ZodHttpValidationPipe } from '@repo/common';
+import { ZodHttpValidationPipe } from '@repo/common/pipes';
 import { firstValueFrom } from 'rxjs';
 
 interface GrpcError {

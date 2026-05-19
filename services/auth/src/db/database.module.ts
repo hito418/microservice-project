@@ -21,7 +21,7 @@ const MIGRATIONS_FOLDER = join(__dirname, 'migrations');
 function buildPool(): Pool {
     return new Pool({
         host: process.env.AUTH_DB_HOST ?? '127.0.0.1',
-        port: parsePort(process.env.AUTH_DB_PORT, 5432),
+        port: parsePort('AUTH_DB_PORT', 5432),
         user: process.env.AUTH_DB_USER ?? 'auth',
         password: process.env.AUTH_DB_PASSWORD ?? 'auth',
         database: process.env.AUTH_DB_NAME ?? 'auth',
