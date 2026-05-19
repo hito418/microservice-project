@@ -34,8 +34,11 @@ services:
             - AUTH_DB_USER=auth
             - AUTH_DB_PASSWORD=auth
             - AUTH_DB_NAME=auth
-            - JWT_SECRET=${JWT_SECRET:-dev-only-change-me}
+            - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt-private.pem
+            - JWT_ALGORITHM=${JWT_ALGORITHM:-ES256}
             - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-3600}
+        volumes:
+            - ./.secrets/jwt-dev/jwt-private.pem:/run/secrets/jwt-private.pem:ro
         depends_on:
             auth-db:
                 condition: service_healthy

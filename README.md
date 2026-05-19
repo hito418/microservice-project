@@ -5,7 +5,17 @@ A small NestJS microservices monorepo managed with pnpm and Turborepo.
 ## Services
 
 - **gateway** — HTTP entry point on port `3000`, forwards requests to internal services. On `POST /auth/login` it sets the JWT as an HttpOnly cookie (`auth_token`); body returns `{ userId, role, expiresIn }`. Cookie behavior is configurable via `AUTH_COOKIE_NAME`, `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAMESITE` (defaults: `auth_token`, `true` in production, `lax`).
-- **auth** — User signup, login, and JWT issuance. NestJS microservice (gRPC transport) on port `50051`, backed by PostgreSQL. Requires `JWT_SECRET` (and optionally `JWT_EXPIRES_IN`, in seconds; defaults to 3600). Wire contract lives in `@contracts/auth` (`.proto` + zod schemas + typed client interface).
+- **auth** — User signup, login, and JWT issuance. NestJS microservice (gRPC transport) on port `50051`, backed by PostgreSQL. Signs JWTs asymmetrically (`ES256` by default) so other services can verify with the public key, no shared secret. Requires `JWT_PRIVATE_KEY` (PEM, with `\n` escapes) or `JWT_PRIVATE_KEY_PATH`. Optional: `JWT_ALGORITHM` (`ES256`/`ES384`/`RS256`/`RS384`), `JWT_EXPIRES_IN` (seconds, default 3600). Wire contract lives in `@contracts/auth` (`.proto` + zod schemas + typed client interface).
+
+## JWT keys
+
+The auth service signs with a private key; verifiers (future gateway middleware) use the matching public key. Generate a dev keypair before booting docker-compose:
+
+```sh
+pnpm keys:gen          # writes .secrets/jwt-dev/{jwt-private,jwt-public}.pem
+```
+
+`.secrets/` is gitignored. **Do not use the generated dev keypair in production** — mint keys in your secrets manager.
 
 ## Layout
 

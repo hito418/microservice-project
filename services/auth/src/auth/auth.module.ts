@@ -12,8 +12,11 @@ const jwtConfig = resolveJwtConfig();
     imports: [
         DatabaseModule,
         JwtModule.register({
-            secret: jwtConfig.secret,
-            signOptions: { expiresIn: `${jwtConfig.expiresInSeconds}s` },
+            privateKey: jwtConfig.privateKey,
+            signOptions: {
+                algorithm: jwtConfig.algorithm,
+                expiresIn: `${jwtConfig.expiresInSeconds}s`,
+            },
         }),
     ],
     controllers: [AuthController],

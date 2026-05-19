@@ -6,6 +6,7 @@ dist/
 *.tsbuildinfo
 .turbo/
 .claude/
+.secrets/
 
 # Devenv
 .devenv*

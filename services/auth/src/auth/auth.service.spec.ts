@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { status } from '@grpc/grpc-js';
 import { JwtService } from '@nestjs/jwt';
 import { RpcException } from '@nestjs/microservices';
@@ -16,11 +17,19 @@ function makeUsersRepoMock(): UsersRepository {
 
 const JWT_TTL_SECONDS = 3600;
 
+// One ES256 keypair per test run — generation is fast enough (~ms) on P-256.
+const { privateKey, publicKey } = generateKeyPairSync('ec', {
+    namedCurve: 'P-256',
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
+
 function makeService(): { service: AuthService; users: UsersRepository; jwt: JwtService } {
     const users = makeUsersRepoMock();
     const jwt = new JwtService({
-        secret: 'test-secret',
-        signOptions: { expiresIn: `${JWT_TTL_SECONDS}s` },
+        privateKey,
+        publicKey,
+        signOptions: { algorithm: 'ES256', expiresIn: `${JWT_TTL_SECONDS}s` },
     });
     const service = new AuthService(users, jwt, JWT_TTL_SECONDS);
     return { service, users, jwt };
