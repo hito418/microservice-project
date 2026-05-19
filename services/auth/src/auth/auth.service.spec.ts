@@ -1,35 +1,34 @@
 import { ConflictException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { Repository } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { User } from '../users/user.entity';
+import type { UserRow } from '../db/database.types';
+import { UsersRepository } from '../users/users.repository';
 import { AuthService } from './auth.service';
 
-function makeRepoMock(): Repository<User> {
-    const repo = {
-        findOne: vi.fn(),
-        create: vi.fn((data: Partial<User>) => data as User),
-        save: vi.fn(),
-    };
-    return repo as unknown as Repository<User>;
+function makeUsersRepoMock(): UsersRepository {
+    return {
+        findByEmail: vi.fn(),
+        insert: vi.fn(),
+    } as unknown as UsersRepository;
 }
 
 describe('AuthService.signup', () => {
-    let repo: Repository<User>;
+    let users: UsersRepository;
     let service: AuthService;
 
     beforeEach(() => {
-        repo = makeRepoMock();
-        service = new AuthService(repo);
+        users = makeUsersRepoMock();
+        service = new AuthService(users);
     });
 
     it('hashes the password and persists a normalized email', async () => {
-        vi.mocked(repo.findOne).mockResolvedValue(null);
-        vi.mocked(repo.save).mockImplementation(async (entity) => ({
-            ...(entity as User),
+        vi.mocked(users.findByEmail).mockResolvedValue(undefined);
+        vi.mocked(users.insert).mockImplementation(async (input) => ({
             id: 'user-1',
-            createdAt: new Date('2026-01-01T00:00:00Z'),
-            updatedAt: new Date('2026-01-01T00:00:00Z'),
+            email: input.email,
+            password_hash: input.passwordHash,
+            created_at: new Date('2026-01-01T00:00:00Z'),
+            updated_at: new Date('2026-01-01T00:00:00Z'),
         }));
 
         const result = await service.signup({
@@ -37,14 +36,13 @@ describe('AuthService.signup', () => {
             password: 'correct horse battery',
         });
 
-        expect(repo.findOne).toHaveBeenCalledWith({
-            where: { email: 'alice@example.com' },
-        });
-        const savedArg = vi.mocked(repo.save).mock.calls[0][0] as User;
-        expect(savedArg.email).toBe('alice@example.com');
-        expect(savedArg.passwordHash).not.toBe('correct horse battery');
+        expect(users.findByEmail).toHaveBeenCalledWith('alice@example.com');
+
+        const insertArg = vi.mocked(users.insert).mock.calls[0][0];
+        expect(insertArg.email).toBe('alice@example.com');
+        expect(insertArg.passwordHash).not.toBe('correct horse battery');
         expect(
-            await bcrypt.compare('correct horse battery', savedArg.passwordHash),
+            await bcrypt.compare('correct horse battery', insertArg.passwordHash),
         ).toBe(true);
 
         expect(result).toEqual({
@@ -52,15 +50,18 @@ describe('AuthService.signup', () => {
             email: 'alice@example.com',
             createdAt: new Date('2026-01-01T00:00:00Z'),
         });
+        expect(result).not.toHaveProperty('password_hash');
         expect(result).not.toHaveProperty('passwordHash');
-        expect(result).not.toHaveProperty('password');
     });
 
     it('rejects duplicate emails with ConflictException', async () => {
-        vi.mocked(repo.findOne).mockResolvedValue({
+        vi.mocked(users.findByEmail).mockResolvedValue({
             id: 'existing',
             email: 'alice@example.com',
-        } as User);
+            password_hash: 'irrelevant',
+            created_at: new Date(),
+            updated_at: new Date(),
+        } as UserRow);
 
         await expect(
             service.signup({
@@ -69,6 +70,6 @@ describe('AuthService.signup', () => {
             }),
         ).rejects.toBeInstanceOf(ConflictException);
 
-        expect(repo.save).not.toHaveBeenCalled();
+        expect(users.insert).not.toHaveBeenCalled();
     });
 });

@@ -12,18 +12,20 @@
         "start": "node dist/main.js",
         "lint": "oxlint",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run"
+        "test": "vitest run",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate"
     },
     "dependencies": {
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
         "@nestjs/platform-fastify": "catalog:",
-        "@nestjs/typeorm": "catalog:",
         "bcryptjs": "catalog:",
+        "drizzle-orm": "catalog:",
+        "kysely": "catalog:",
         "pg": "catalog:",
         "reflect-metadata": "catalog:",
         "rxjs": "catalog:",
-        "typeorm": "catalog:",
         "zod": "catalog:"
     },
     "devDependencies": {
@@ -33,6 +35,8 @@
         "@repo/ts-config": "workspace:*",
         "@types/bcryptjs": "^2.4.6",
         "@types/node": "^22.0.0",
+        "@types/pg": "^8.11.10",
+        "drizzle-kit": "catalog:",
         "oxfmt": "catalog:",
         "oxlint": "catalog:",
         "typescript": "catalog:",

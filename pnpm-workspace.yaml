@@ -14,15 +14,16 @@ catalog:
     "@nestjs/core": ^11.0.0
     "@nestjs/microservices": ^11.0.0
     "@nestjs/platform-fastify": ^11.0.0
-    "@nestjs/typeorm": ^11.0.0
     "@nestjs/cli": 11.0.21
     reflect-metadata: ^0.2.2
     rxjs: ^7.8.1
 
     # auth / persistence
     bcryptjs: ^2.4.3
+    drizzle-kit: ^0.28.0
+    drizzle-orm: ^0.36.0
+    kysely: ^0.27.0
     pg: ^8.13.0
-    typeorm: ^0.3.20
     zod: ^3.23.8
 
     # testing
