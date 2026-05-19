@@ -1,6 +1,9 @@
 import {
     AUTH_SERVICE_NAME,
     type AuthServiceClient,
+    type LoginRequest,
+    type LoginResponse,
+    loginSchema,
     type SignupRequest,
     type SignupResponse,
     signupSchema,
@@ -18,6 +21,7 @@ import {
     Logger,
     OnModuleInit,
     Post,
+    UnauthorizedException,
 } from '@nestjs/common';
 import { type ClientGrpc } from '@nestjs/microservices';
 import { ZodHttpValidationPipe } from '@repo/common/pipes';
@@ -55,11 +59,26 @@ export class AuthController implements OnModuleInit {
             this.logger.debug(`signup ok id=${result.id} email=${result.email}`);
             return result;
         } catch (err) {
-            throw this.mapAuthError(err, dto.email);
+            throw this.mapSignupError(err, dto.email);
         }
     }
 
-    private mapAuthError(err: unknown, email: string): Error {
+    @Post('login')
+    @HttpCode(HttpStatus.OK)
+    async login(
+        @Body(new ZodHttpValidationPipe(loginSchema)) dto: LoginRequest,
+    ): Promise<LoginResponse> {
+        this.logger.debug(`login requested email=${dto.email}`);
+        try {
+            const result = await firstValueFrom(this.auth.login(dto));
+            this.logger.debug(`login ok userId=${result.userId} role=${result.role}`);
+            return result;
+        } catch (err) {
+            throw this.mapLoginError(err, dto.email);
+        }
+    }
+
+    private mapSignupError(err: unknown, email: string): Error {
         const grpcErr = err as GrpcError | null;
         const code = grpcErr?.code;
         switch (code) {
@@ -72,6 +91,24 @@ export class AuthController implements OnModuleInit {
             default:
                 this.logger.error(
                     `signup failed email=${email} code=${code ?? 'unknown'} details=${grpcErr?.details ?? grpcErr?.message ?? ''}`,
+                );
+                return new InternalServerErrorException('auth call failed');
+        }
+    }
+
+    private mapLoginError(err: unknown, email: string): Error {
+        const grpcErr = err as GrpcError | null;
+        const code = grpcErr?.code;
+        switch (code) {
+            case grpcStatus.UNAUTHENTICATED:
+                this.logger.warn(`login unauthorized email=${email}`);
+                return new UnauthorizedException('invalid credentials');
+            case grpcStatus.INVALID_ARGUMENT:
+                this.logger.warn(`login invalid email=${email}`);
+                return new BadRequestException('invalid login payload');
+            default:
+                this.logger.error(
+                    `login failed email=${email} code=${code ?? 'unknown'} details=${grpcErr?.details ?? grpcErr?.message ?? ''}`,
                 );
                 return new InternalServerErrorException('auth call failed');
         }

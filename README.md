@@ -5,7 +5,7 @@ A small NestJS microservices monorepo managed with pnpm and Turborepo.
 ## Services
 
 - **gateway** — HTTP entry point on port `3000`, forwards requests to internal services.
-- **auth** — User signup (login / JWT issuance not yet implemented). NestJS microservice (gRPC transport) on port `50051`, backed by PostgreSQL. Wire contract lives in `@contracts/auth` (`.proto` + zod schemas + typed client interface).
+- **auth** — User signup, login, and JWT issuance. NestJS microservice (gRPC transport) on port `50051`, backed by PostgreSQL. Requires `JWT_SECRET` (and optionally `JWT_EXPIRES_IN`, in seconds; defaults to 3600). Wire contract lives in `@contracts/auth` (`.proto` + zod schemas + typed client interface).
 
 ## Layout
 
