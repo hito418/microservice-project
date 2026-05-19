@@ -81,4 +81,31 @@ describe('AuthService.signup', () => {
 
         expect(users.insert).not.toHaveBeenCalled();
     });
+
+    it('translates pg unique-violation on insert to RpcException(ALREADY_EXISTS)', async () => {
+        // Race: findByEmail clears, but a concurrent signup wins the insert,
+        // so ours fails the users_email_unique constraint.
+        vi.mocked(users.findByEmail).mockResolvedValue(undefined);
+        vi.mocked(users.insert).mockRejectedValue(
+            Object.assign(new Error('duplicate key value violates unique constraint'), {
+                code: '23505',
+                constraint: 'users_email_unique',
+            }),
+        );
+
+        try {
+            await service.signup({
+                email: 'alice@example.com',
+                password: 'correct horse battery',
+            });
+            expect.fail('expected RpcException');
+        } catch (err) {
+            expect(err).toBeInstanceOf(RpcException);
+            const error = (err as RpcException).getError() as {
+                code: number;
+                message: string;
+            };
+            expect(error.code).toBe(status.ALREADY_EXISTS);
+        }
+    });
 });
