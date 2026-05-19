@@ -1,0 +1,41 @@
+{
+    "name": "@services/auth",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/main.js",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "nest build",
+        "dev": "nest build --watch",
+        "start": "node dist/main.js",
+        "lint": "oxlint",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@nestjs/common": "catalog:",
+        "@nestjs/core": "catalog:",
+        "@nestjs/platform-fastify": "catalog:",
+        "@nestjs/typeorm": "catalog:",
+        "bcryptjs": "catalog:",
+        "pg": "catalog:",
+        "reflect-metadata": "catalog:",
+        "rxjs": "catalog:",
+        "typeorm": "catalog:",
+        "zod": "catalog:"
+    },
+    "devDependencies": {
+        "@nestjs/cli": "catalog:",
+        "@repo/oxfmt-config": "workspace:*",
+        "@repo/oxlint-config": "workspace:*",
+        "@repo/ts-config": "workspace:*",
+        "@types/bcryptjs": "^2.4.6",
+        "@types/node": "^22.0.0",
+        "oxfmt": "catalog:",
+        "oxlint": "catalog:",
+        "typescript": "catalog:",
+        "vitest": "catalog:"
+    }
+}
