@@ -6,11 +6,18 @@ import { SCORING_REPOSITORY } from './scoring.repository';
 import type { ScoringRepository } from './scoring.repository';
 import type { SpectatorVote } from '../votes/spectator-vote.model';
 import { SpectatorVotesService } from '../votes/spectator-votes.service';
-import type { CreateSpectatorVoteCommand } from '../votes/spectator-votes.service';
+import type {
+    AudienceVoteSummary,
+    CreateSpectatorVoteCommand,
+} from '../votes/spectator-votes.service';
 
 type UpsertDebateCommand = {
     debateId?: string;
     status?: string;
+};
+
+type AudienceVoteSummaryCommand = {
+    debateId?: string;
 };
 
 @Controller()
@@ -27,6 +34,23 @@ export class ScoringController {
     ): Promise<SpectatorVote> {
         try {
             return await this.spectatorVotes.createVote(payload);
+        } catch (error) {
+            if (error instanceof HttpException) {
+                throw new RpcException({
+                    statusCode: error.getStatus(),
+                    message: this.getHttpExceptionMessage(error),
+                });
+            }
+            throw error;
+        }
+    }
+
+    @MessagePattern({ cmd: 'scoring.audience-votes.summary' })
+    async getAudienceVoteSummary(
+        @Payload() payload: AudienceVoteSummaryCommand | undefined,
+    ): Promise<AudienceVoteSummary> {
+        try {
+            return await this.spectatorVotes.getAudienceVoteSummary(payload?.debateId);
         } catch (error) {
             if (error instanceof HttpException) {
                 throw new RpcException({

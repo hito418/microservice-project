@@ -180,4 +180,198 @@ describe('SpectatorVotesService', () => {
         assert.equal(debate.status, DebateStatus.Running);
         assert.equal(vote.debateId, 'runtime-debate');
     });
+
+    it('returns an audience vote summary through the TCP handler', async () => {
+        const { controller, repository, service } = createFixture();
+        repository.seedDebate({ id: 'tcp-summary-debate', status: DebateStatus.Running });
+
+        await service.createVote({
+            debateId: 'tcp-summary-debate',
+            userId: 'user-1',
+            side: SpectatorVoteSide.For,
+        });
+
+        const summary = await controller.getAudienceVoteSummary({
+            debateId: 'tcp-summary-debate',
+        });
+
+        assert.deepEqual(summary, {
+            debateId: 'tcp-summary-debate',
+            totalVotes: 1,
+            forVotes: 1,
+            againstVotes: 0,
+            forScore: 100,
+            againstScore: 0,
+        });
+    });
+
+    it('returns zero votes and zero scores for a known debate without votes', async () => {
+        const { repository, service } = createFixture();
+        repository.seedDebate({ id: 'debate-without-votes', status: DebateStatus.Running });
+
+        const summary = await service.getAudienceVoteSummary('debate-without-votes');
+
+        assert.deepEqual(summary, {
+            debateId: 'debate-without-votes',
+            totalVotes: 0,
+            forVotes: 0,
+            againstVotes: 0,
+            forScore: 0,
+            againstScore: 0,
+        });
+    });
+
+    it('aggregates one FOR vote', async () => {
+        const { repository, service } = createFixture();
+        repository.seedDebate({ id: 'debate-for', status: DebateStatus.Running });
+
+        await service.createVote({
+            debateId: 'debate-for',
+            userId: 'user-1',
+            side: SpectatorVoteSide.For,
+        });
+
+        const summary = await service.getAudienceVoteSummary('debate-for');
+
+        assert.deepEqual(summary, {
+            debateId: 'debate-for',
+            totalVotes: 1,
+            forVotes: 1,
+            againstVotes: 0,
+            forScore: 100,
+            againstScore: 0,
+        });
+    });
+
+    it('aggregates one AGAINST vote', async () => {
+        const { repository, service } = createFixture();
+        repository.seedDebate({ id: 'debate-against', status: DebateStatus.Running });
+
+        await service.createVote({
+            debateId: 'debate-against',
+            userId: 'user-1',
+            side: SpectatorVoteSide.Against,
+        });
+
+        const summary = await service.getAudienceVoteSummary('debate-against');
+
+        assert.deepEqual(summary, {
+            debateId: 'debate-against',
+            totalVotes: 1,
+            forVotes: 0,
+            againstVotes: 1,
+            forScore: 0,
+            againstScore: 100,
+        });
+    });
+
+    it('aggregates several FOR and AGAINST votes', async () => {
+        const { repository, service } = createFixture();
+        repository.seedDebate({ id: 'balanced-debate', status: DebateStatus.Running });
+
+        await service.createVote({
+            debateId: 'balanced-debate',
+            userId: 'user-1',
+            side: SpectatorVoteSide.For,
+        });
+        await service.createVote({
+            debateId: 'balanced-debate',
+            userId: 'user-2',
+            side: SpectatorVoteSide.Against,
+        });
+
+        const summary = await service.getAudienceVoteSummary('balanced-debate');
+
+        assert.deepEqual(summary, {
+            debateId: 'balanced-debate',
+            totalVotes: 2,
+            forVotes: 1,
+            againstVotes: 1,
+            forScore: 50,
+            againstScore: 50,
+        });
+    });
+
+    it('rounds two FOR votes and one AGAINST vote to 67 and 33', async () => {
+        const { repository, service } = createFixture();
+        repository.seedDebate({ id: 'rounded-debate', status: DebateStatus.Running });
+
+        await service.createVote({
+            debateId: 'rounded-debate',
+            userId: 'user-1',
+            side: SpectatorVoteSide.For,
+        });
+        await service.createVote({
+            debateId: 'rounded-debate',
+            userId: 'user-2',
+            side: SpectatorVoteSide.For,
+        });
+        await service.createVote({
+            debateId: 'rounded-debate',
+            userId: 'user-3',
+            side: SpectatorVoteSide.Against,
+        });
+
+        const summary = await service.getAudienceVoteSummary('rounded-debate');
+
+        assert.deepEqual(summary, {
+            debateId: 'rounded-debate',
+            totalVotes: 3,
+            forVotes: 2,
+            againstVotes: 1,
+            forScore: 67,
+            againstScore: 33,
+        });
+    });
+
+    it('ignores votes from another debate', async () => {
+        const { repository, service } = createFixture();
+        repository.seedDebate({ id: 'target-debate', status: DebateStatus.Running });
+        repository.seedDebate({ id: 'other-debate', status: DebateStatus.Running });
+
+        await service.createVote({
+            debateId: 'target-debate',
+            userId: 'user-1',
+            side: SpectatorVoteSide.For,
+        });
+        await service.createVote({
+            debateId: 'other-debate',
+            userId: 'user-2',
+            side: SpectatorVoteSide.Against,
+        });
+        await service.createVote({
+            debateId: 'other-debate',
+            userId: 'user-3',
+            side: SpectatorVoteSide.Against,
+        });
+
+        const summary = await service.getAudienceVoteSummary('target-debate');
+
+        assert.deepEqual(summary, {
+            debateId: 'target-debate',
+            totalVotes: 1,
+            forVotes: 1,
+            againstVotes: 0,
+            forScore: 100,
+            againstScore: 0,
+        });
+    });
+
+    it('rejects a summary for an unknown debate', async () => {
+        const { service } = createFixture();
+
+        await assert.rejects(
+            service.getAudienceVoteSummary('missing-debate'),
+            NotFoundException,
+        );
+    });
+
+    it('rejects a summary with an empty debateId', async () => {
+        const { service } = createFixture();
+
+        await assert.rejects(
+            service.getAudienceVoteSummary('   '),
+            BadRequestException,
+        );
+    });
 });

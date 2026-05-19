@@ -26,6 +26,15 @@ type SpectatorVoteResponse = {
     createdAt: string;
 };
 
+type AudienceVoteSummaryResponse = {
+    debateId: string;
+    totalVotes: number;
+    forVotes: number;
+    againstVotes: number;
+    forScore: number;
+    againstScore: number;
+};
+
 type RpcErrorPayload = {
     statusCode?: number;
     message?: string | string[];
@@ -67,6 +76,22 @@ export class GatewayController {
                 this.scoringClient.send<SpectatorVoteResponse>(
                     { cmd: 'scoring.spectator-vote.create' },
                     { debateId, userId: user.id, side: body.side },
+                ),
+            );
+        } catch (error) {
+            throw this.toHttpException(error);
+        }
+    }
+
+    @Get('debates/:debateId/votes/summary')
+    async getAudienceVoteSummary(
+        @Param('debateId') debateId: string,
+    ): Promise<AudienceVoteSummaryResponse> {
+        try {
+            return await firstValueFrom(
+                this.scoringClient.send<AudienceVoteSummaryResponse>(
+                    { cmd: 'scoring.audience-votes.summary' },
+                    { debateId },
                 ),
             );
         } catch (error) {

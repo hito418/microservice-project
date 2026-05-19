@@ -34,6 +34,10 @@ export class InMemoryScoringRepository implements ScoringRepository {
         return this.votes.get(this.voteKey(debateId, userId));
     }
 
+    async findVotesByDebateId(debateId: string): Promise<SpectatorVote[]> {
+        return Array.from(this.votes.values()).filter((vote) => vote.debateId === debateId);
+    }
+
     async createSpectatorVote(input: CreateSpectatorVoteRecord): Promise<SpectatorVote> {
         const key = this.voteKey(input.debateId, input.userId);
 

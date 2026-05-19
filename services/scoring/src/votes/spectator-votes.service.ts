@@ -28,6 +28,15 @@ export type CreateSpectatorVoteCommand = {
     side: string | undefined;
 };
 
+export type AudienceVoteSummary = {
+    debateId: string;
+    totalVotes: number;
+    forVotes: number;
+    againstVotes: number;
+    forScore: number;
+    againstScore: number;
+};
+
 @Injectable()
 export class SpectatorVotesService {
     constructor(
@@ -80,5 +89,43 @@ export class SpectatorVotesService {
             }
             throw error;
         }
+    }
+
+    async getAudienceVoteSummary(debateIdInput: string | undefined): Promise<AudienceVoteSummary> {
+        const debateId = debateIdInput?.trim();
+
+        if (!debateId) {
+            throw new BadRequestException('debateId is required');
+        }
+
+        const debate = await this.scoringRepository.findDebateById(debateId);
+        if (!debate) {
+            throw new NotFoundException(`Debate ${debateId} was not found`);
+        }
+
+        const votes = await this.scoringRepository.findVotesByDebateId(debateId);
+        const forVotes = votes.filter((vote) => vote.side === SpectatorVoteSide.For).length;
+        const againstVotes = votes.filter((vote) => vote.side === SpectatorVoteSide.Against).length;
+        const totalVotes = forVotes + againstVotes;
+
+        if (totalVotes === 0) {
+            return {
+                debateId,
+                totalVotes,
+                forVotes,
+                againstVotes,
+                forScore: 0,
+                againstScore: 0,
+            };
+        }
+
+        return {
+            debateId,
+            totalVotes,
+            forVotes,
+            againstVotes,
+            forScore: Math.round((forVotes / totalVotes) * 100),
+            againstScore: Math.round((againstVotes / totalVotes) * 100),
+        };
     }
 }

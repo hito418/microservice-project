@@ -27,5 +27,6 @@ export interface ScoringRepository {
         debateId: string,
         userId: string,
     ): Promise<SpectatorVote | undefined>;
+    findVotesByDebateId(debateId: string): Promise<SpectatorVote[]>;
     createSpectatorVote(input: CreateSpectatorVoteRecord): Promise<SpectatorVote>;
 }
