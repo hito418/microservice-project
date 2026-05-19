@@ -23,7 +23,6 @@ describe('GatewayController spectator votes', () => {
     it('rejects a missing body with 400 before calling scoring', async () => {
         let scoringCalled = false;
         const controller = new GatewayController(
-            createClientProxy(() => 0),
             createClientProxy(() => {
                 scoringCalled = true;
                 return {};
@@ -46,7 +45,6 @@ describe('GatewayController spectator votes', () => {
             userId: 'body-user',
         } as unknown as CreateSpectatorVoteDto;
         const controller = new GatewayController(
-            createClientProxy(() => 0),
             createClientProxy((message) => {
                 sentMessage = message;
                 return {
