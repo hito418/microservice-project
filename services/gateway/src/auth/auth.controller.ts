@@ -20,8 +20,8 @@ import {
     Post,
 } from '@nestjs/common';
 import { type ClientGrpc } from '@nestjs/microservices';
+import { ZodHttpValidationPipe } from '@repo/common';
 import { firstValueFrom } from 'rxjs';
-import { ZodValidationPipe } from '../common/zod-validation.pipe';
 
 interface GrpcError {
     code?: number;
@@ -47,7 +47,7 @@ export class AuthController implements OnModuleInit {
     @Post('signup')
     @HttpCode(HttpStatus.CREATED)
     async signup(
-        @Body(new ZodValidationPipe(signupSchema)) dto: SignupRequest,
+        @Body(new ZodHttpValidationPipe(signupSchema)) dto: SignupRequest,
     ): Promise<SignupResponse> {
         this.logger.debug(`signup requested email=${dto.email}`);
         try {

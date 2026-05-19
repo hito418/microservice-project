@@ -3,7 +3,7 @@ import { PipeTransform } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import type { ZodSchema } from 'zod';
 
-export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
+export class ZodRpcValidationPipe<T> implements PipeTransform<unknown, T> {
     constructor(private readonly schema: ZodSchema<T>) {}
 
     transform(value: unknown): T {

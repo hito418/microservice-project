@@ -22,6 +22,7 @@
         "@nestjs/core": "catalog:",
         "@nestjs/microservices": "catalog:",
         "@nestjs/platform-fastify": "catalog:",
+        "@repo/common": "workspace:*",
         "reflect-metadata": "catalog:",
         "rxjs": "catalog:",
         "zod": "catalog:"

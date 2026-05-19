@@ -23,6 +23,7 @@
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
         "@nestjs/microservices": "catalog:",
+        "@repo/common": "workspace:*",
         "bcryptjs": "catalog:",
         "drizzle-orm": "catalog:",
         "kysely": "catalog:",
