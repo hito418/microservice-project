@@ -5,7 +5,7 @@
     "main": "dist/main.js",
     "scripts": {
         "build": "nest build",
-        "dev": "nest build --watch",
+        "dev": "nest start --watch",
         "start": "node dist/main.js",
         "lint": "oxlint",
         "typecheck": "tsc --noEmit"
