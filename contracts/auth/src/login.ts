@@ -13,5 +13,5 @@ export const loginSchema = z
     })
     .strict();
 
-export const USER_ROLES = ['player', 'spectator', 'admin'] as const;
+export const USER_ROLES = ['user', 'admin'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
