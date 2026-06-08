@@ -1,23 +1,24 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { parsePort, resolveLogLevels } from '@repo/common';
 import { AppModule } from './app.module';
-
-const HOST = process.env.SCORING_HOST ?? '127.0.0.1';
-const PORT = parsePort('SCORING_PORT', 4002);
+import { ConfigService } from './config/config.service';
 
 async function bootstrap() {
+    const config = new ConfigService();
+
     const app = await NestFactory.createMicroservice<MicroserviceOptions>(
         AppModule,
         {
             transport: Transport.TCP,
-            options: { host: HOST, port: PORT },
-            logger: resolveLogLevels(),
+            options: { host: config.serverHost, port: config.serverPort },
+            logger: config.logLevels,
         },
     );
     await app.listen();
-    new Logger('Bootstrap').log(`scoring microservice listening on tcp://${HOST}:${PORT}`);
+    new Logger('Bootstrap').log(
+        `scoring microservice listening on tcp://${config.serverHost}:${config.serverPort}`,
+    );
 }
 
 bootstrap();
