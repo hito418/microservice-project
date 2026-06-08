@@ -22,6 +22,7 @@
         "@grpc/proto-loader": "catalog:",
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
+        "@nestjs/jwt": "catalog:",
         "@nestjs/microservices": "catalog:",
         "@nestjs/platform-fastify": "catalog:",
         "@repo/common": "workspace:*",
