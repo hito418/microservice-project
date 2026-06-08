@@ -2,22 +2,21 @@ import fastifyCookie from '@fastify/cookie';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { parsePort, resolveLogLevels } from '@repo/common';
 import { AppModule } from './app.module';
-
-const HOST = process.env.GATEWAY_HOST ?? '127.0.0.1';
-const PORT = parsePort('GATEWAY_PORT', 3000);
+import { ConfigService } from './config/config.service';
 
 async function bootstrap() {
+    const config = new ConfigService();
+
     const app = await NestFactory.create<NestFastifyApplication>(
         AppModule,
         new FastifyAdapter(),
-        { logger: resolveLogLevels() },
+        { logger: config.logLevels },
     );
     await app.register(fastifyCookie);
-    await app.listen(PORT, HOST);
+    await app.listen(config.httpPort, config.httpHost);
     new Logger('Bootstrap').log(
-        `gateway HTTP (fastify) listening on http://${HOST}:${PORT}`,
+        `gateway HTTP (fastify) listening on http://${config.httpHost}:${config.httpPort}`,
     );
 }
 

@@ -27,7 +27,7 @@ import { type ClientGrpc } from '@nestjs/microservices';
 import { ZodHttpValidationPipe } from '@repo/common/pipes';
 import { type FastifyReply } from 'fastify';
 import { firstValueFrom } from 'rxjs';
-import { resolveAuthCookieConfig } from './auth-cookie';
+import { ConfigService } from '../config/config.service';
 
 interface GrpcError {
     code?: number;
@@ -44,11 +44,11 @@ interface LoginBody {
 @Controller('auth')
 export class AuthController implements OnModuleInit {
     private readonly logger = new Logger(AuthController.name);
-    private readonly cookieConfig = resolveAuthCookieConfig();
     private auth!: AuthServiceClient;
 
     constructor(
         @Inject('AUTH_CLIENT') private readonly authClient: ClientGrpc,
+        private readonly config: ConfigService,
     ) {}
 
     onModuleInit(): void {
@@ -86,11 +86,11 @@ export class AuthController implements OnModuleInit {
             throw this.mapLoginError(err, dto.email);
         }
 
-        reply.setCookie(this.cookieConfig.name, result.accessToken, {
+        reply.setCookie(this.config.authCookieName, result.jwt, {
             httpOnly: true,
-            secure: this.cookieConfig.secure,
-            sameSite: this.cookieConfig.sameSite,
-            path: this.cookieConfig.path,
+            secure: this.config.authCookieSecure,
+            sameSite: this.config.authCookieSameSite,
+            path: this.config.authCookiePath,
             maxAge: result.expiresIn,
         });
 
