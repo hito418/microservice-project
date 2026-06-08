@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { RpcException } from '@nestjs/microservices';
 import * as bcrypt from 'bcryptjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ConfigService } from '../config/config.service';
 import type { UserRow } from '../db/database.types';
 import { UsersRepository } from '../users/users.repository';
 import { AuthService } from './auth.service';
@@ -24,6 +25,14 @@ const { privateKey, publicKey } = generateKeyPairSync('ec', {
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
 });
 
+function makeConfigMock(): ConfigService {
+    return {
+        jwtPrivateKey: privateKey,
+        jwtAlgorithm: 'ES256',
+        jwtExpiresInSeconds: JWT_TTL_SECONDS,
+    } as unknown as ConfigService;
+}
+
 function makeService(): { service: AuthService; users: UsersRepository; jwt: JwtService } {
     const users = makeUsersRepoMock();
     const jwt = new JwtService({
@@ -31,7 +40,7 @@ function makeService(): { service: AuthService; users: UsersRepository; jwt: Jwt
         publicKey,
         signOptions: { algorithm: 'ES256', expiresIn: `${JWT_TTL_SECONDS}s` },
     });
-    const service = new AuthService(users, jwt, JWT_TTL_SECONDS);
+    const service = new AuthService(users, jwt, makeConfigMock());
     return { service, users, jwt };
 }
 
@@ -51,7 +60,7 @@ describe('AuthService.signup', () => {
             id: 'user-1',
             email: input.email,
             password_hash: input.passwordHash,
-            role: 'player',
+            role: 'user',
             created_at: new Date('2026-01-01T00:00:00Z'),
             updated_at: new Date('2026-01-01T00:00:00Z'),
         }));
@@ -84,7 +93,7 @@ describe('AuthService.signup', () => {
             id: 'existing',
             email: 'alice@example.com',
             password_hash: 'irrelevant',
-            role: 'player',
+            role: 'user',
             created_at: new Date(),
             updated_at: new Date(),
         } as UserRow);
@@ -168,7 +177,7 @@ describe('AuthService.login', () => {
         expect(result.role).toBe('admin');
         expect(result.expiresIn).toBe(JWT_TTL_SECONDS);
 
-        const decoded = jwt.verify<{ sub: string; role: string }>(result.accessToken);
+        const decoded = jwt.verify<{ sub: string; role: string }>(result.jwt);
         expect(decoded.sub).toBe('user-1');
         expect(decoded.role).toBe('admin');
     });
@@ -195,7 +204,7 @@ describe('AuthService.login', () => {
             id: 'user-1',
             email: 'alice@example.com',
             password_hash: passwordHash,
-            role: 'player',
+            role: 'user',
             created_at: new Date(),
             updated_at: new Date(),
         } as UserRow);

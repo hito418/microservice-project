@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { RpcException } from '@nestjs/microservices';
 import * as bcrypt from 'bcryptjs';
 import { UsersRepository } from '../users/users.repository';
+import { ConfigService } from '../config/config.service';
 
 const BCRYPT_ROUNDS = 12;
 const PG_UNIQUE_VIOLATION = '23505';
@@ -23,7 +24,7 @@ function isDuplicateEmail(err: unknown): boolean {
 
 export interface JwtAccessPayload {
     sub: string;
-    role: 'player' | 'spectator' | 'admin';
+    role: 'user' | 'admin';
 }
 
 @Injectable()
@@ -34,7 +35,7 @@ export class AuthService {
         private readonly users: UsersRepository,
         private readonly jwt: JwtService,
         // Resolved JWT lifetime in seconds — must mirror what JwtModule signs with.
-        private readonly accessTokenTtlSeconds: number,
+        private readonly config: ConfigService,
     ) {}
 
     async signup({ email, password }: SignupRequest): Promise<SignupResponse> {
@@ -83,12 +84,19 @@ export class AuthService {
         this.logger.debug(`login attempt email=${normalizedEmail}`);
 
         const user = await this.users.findByEmail(normalizedEmail);
-        // Always run bcrypt, even on miss, to avoid leaking which emails exist via timing.
-        const passwordOk = user
-            ? await bcrypt.compare(password, user.password_hash)
-            : await bcrypt.compare(password, BCRYPT_DUMMY_HASH).then(() => false);
 
-        if (!user || !passwordOk) {
+        if (!user) {
+            this.logger.warn(`login failed (no such email) email=${normalizedEmail}`);
+            throw new RpcException({
+                code: status.UNAUTHENTICATED,
+                message: 'invalid credentials',
+            });
+        }
+
+        // Always run bcrypt, even on miss, to avoid leaking which emails exist via timing.
+        const passwordOk = await bcrypt.compare(password, user.password_hash)
+
+        if (!passwordOk) {
             this.logger.warn(`login failed email=${normalizedEmail}`);
             throw new RpcException({
                 code: status.UNAUTHENTICATED,
@@ -97,20 +105,15 @@ export class AuthService {
         }
 
         const payload: JwtAccessPayload = { sub: user.id, role: user.role };
-        const accessToken = await this.jwt.signAsync(payload);
+        const jwt = await this.jwt.signAsync(payload, { privateKey: this.config.jwtPrivateKey });
 
         this.logger.debug(`login ok id=${user.id} role=${user.role}`);
 
         return {
-            accessToken,
+            jwt,
             userId: user.id,
             role: user.role,
-            expiresIn: this.accessTokenTtlSeconds,
+            expiresIn: this.config.jwtExpiresInSeconds,
         };
     }
 }
-
-// Pre-computed bcrypt hash, used solely to keep the failed-login path's CPU
-// cost roughly equal to the success path (no early return on unknown email).
-const BCRYPT_DUMMY_HASH =
-    '$2a$12$X6rSLzkvh8dYXZwAJsCEJ.IA0e3XrwQ307vZkpFE/jEYSiUaDVLhy';

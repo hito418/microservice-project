@@ -28,7 +28,7 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  accessToken: string;
+  jwt: string;
   userId: string;
   role: string;
   /** Lifetime of the access_token in seconds. */
