@@ -30,7 +30,10 @@ describe('GatewayController spectator votes', () => {
         );
 
         await assert.rejects(
-            controller.createSpectatorVote('debate-1', undefined, { id: 'user-1' }),
+            controller.createSpectatorVote('debate-1', undefined, {
+                id: 'user-1',
+                role: 'user',
+            }),
             BadRequestException,
         );
         assert.equal(scoringCalled, false);
@@ -38,7 +41,7 @@ describe('GatewayController spectator votes', () => {
 
     it('uses debateId from the URL and userId from the authenticated user', async () => {
         let sentMessage: SentMessage | undefined;
-        const user: AuthenticatedUser = { id: 'header-user' };
+        const user: AuthenticatedUser = { id: 'header-user', role: 'user' };
         const body = {
             side: 'FOR',
             debateId: 'body-debate',

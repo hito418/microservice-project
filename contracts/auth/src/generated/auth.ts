@@ -22,19 +22,36 @@ export interface SignupResponse {
   createdAt: string;
 }
 
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  jwt: string;
+  userId: string;
+  role: string;
+  /** Lifetime of the access_token in seconds. */
+  expiresIn: number;
+}
+
 export const AUTH_V1_PACKAGE_NAME = "auth.v1";
 
 export interface AuthServiceClient {
   signup(request: SignupRequest): Observable<SignupResponse>;
+
+  login(request: LoginRequest): Observable<LoginResponse>;
 }
 
 export interface AuthServiceController {
   signup(request: SignupRequest): Promise<SignupResponse> | Observable<SignupResponse> | SignupResponse;
+
+  login(request: LoginRequest): Promise<LoginResponse> | Observable<LoginResponse> | LoginResponse;
 }
 
 export function AuthServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["signup"];
+    const grpcMethods: string[] = ["signup", "login"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("AuthService", method)(constructor.prototype[method], method, descriptor);

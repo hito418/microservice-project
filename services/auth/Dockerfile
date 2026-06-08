@@ -38,5 +38,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=build /prod ./
+COPY --from=prune /app/.secrets ./.secrets
 
 CMD ["node", "dist/main.js"]
