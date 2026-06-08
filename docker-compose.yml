@@ -11,8 +11,15 @@ services:
             - AUTH_GRPC_HOST=auth
             - AUTH_GRPC_PORT=50051
             - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
+            - JWT_PUBLIC_KEY_PATH=/app/.secrets/public.pem
+            - JWT_ALGORITHM=${JWT_ALGORITHM:-RS256}
+            - LOG_LEVEL=verbose
+        volumes:
+            - ./.secrets/jwt/public.pem:/app/.secrets/public.pem:ro
         ports:
             - 3000:3000
+        networks:
+            - gateway
     scoring:
         build:
             context: .
@@ -34,11 +41,14 @@ services:
             - AUTH_DB_USER=auth
             - AUTH_DB_PASSWORD=auth
             - AUTH_DB_NAME=auth
-            - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt-private.pem
-            - JWT_ALGORITHM=${JWT_ALGORITHM:-ES256}
+            - JWT_PRIVATE_KEY_PATH=/app/.secrets/private.pem
+            - JWT_ALGORITHM=${JWT_ALGORITHM:-RS256}
             - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-3600}
         volumes:
-            - ./.secrets/jwt-dev/jwt-private.pem:/run/secrets/jwt-private.pem:ro
+            - ./.secrets/jwt/private.pem:/app/.secrets/private.pem:ro
+        networks:
+            - auth-service
+            - gateway
         depends_on:
             auth-db:
                 condition: service_healthy
@@ -53,7 +63,12 @@ services:
         volumes:
             - auth-db-data:/var/lib/postgresql/data
         ports:
-            - 127.0.0.1:5432:5432
+            # Host 5433 → container 5432: avoids clashing with other local
+            # Postgres instances on the default 5432. In-cluster traffic still
+            # uses auth-db:5432 over the auth-service network.
+            - 5433:5432
+        networks:
+            - auth-service
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U auth -d auth"]
             interval: 5s
@@ -65,7 +80,7 @@ services:
         volumes:
             - redis-data:/data
         ports:
-            - 127.0.0.1:6379:6379
+            - 6379:6379
         healthcheck:
             test: ["CMD", "redis-cli", "ping"]
             interval: 5s
@@ -75,3 +90,7 @@ services:
 volumes:
     redis-data:
     auth-db-data:
+
+networks:
+    auth-service:
+    gateway:
