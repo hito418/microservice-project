@@ -12,13 +12,21 @@
         "start": "node dist/main.js",
         "lint": "oxlint",
         "typecheck": "tsc --noEmit",
-        "test": "nest build && node --test \"dist/**/*.spec.js\""
+        "test": "vitest run",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate"
     },
     "dependencies": {
+        "@contracts/scoring": "workspace:*",
+        "@grpc/grpc-js": "catalog:",
+        "@grpc/proto-loader": "catalog:",
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
         "@nestjs/microservices": "catalog:",
         "@repo/common": "workspace:*",
+        "drizzle-orm": "catalog:",
+        "kysely": "catalog:",
+        "pg": "catalog:",
         "reflect-metadata": "catalog:",
         "rxjs": "catalog:"
     },
@@ -27,9 +35,12 @@
         "@repo/oxfmt-config": "workspace:*",
         "@repo/oxlint-config": "workspace:*",
         "@types/node": "^22.0.0",
+        "@types/pg": "^8.11.10",
         "@nestjs/cli": "catalog:",
+        "drizzle-kit": "catalog:",
         "typescript": "catalog:",
         "oxlint": "catalog:",
-        "oxfmt": "catalog:"
+        "oxfmt": "catalog:",
+        "vitest": "catalog:"
     }
 }

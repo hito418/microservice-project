@@ -1,183 +1,171 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { status } from '@grpc/grpc-js';
+import { RpcException } from '@nestjs/microservices';
+import { createSpectatorVoteSchema } from '@contracts/scoring';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SpectatorVoteRow } from '../db/database.types';
 import {
-    BadRequestException,
-    ConflictException,
-    NotFoundException,
-} from '@nestjs/common';
-import { DebateStatus } from '../debates/debate.model';
-import { ScoringController } from '../scoring/scoring.controller';
-import { InMemoryScoringRepository } from '../scoring/in-memory-scoring.repository';
-import { SpectatorVoteSide } from './spectator-vote.model';
+    DuplicateSpectatorVoteError,
+    ScoringRepository,
+} from '../scoring/scoring.repository';
 import { SpectatorVotesService } from './spectator-votes.service';
 
-function createFixture() {
-    const repository = new InMemoryScoringRepository();
-    const service = new SpectatorVotesService(repository);
-    const controller = new ScoringController(service, repository);
-    return { controller, repository, service };
+function makeRepoMock(): ScoringRepository {
+    return {
+        findDebateById: vi.fn(),
+        upsertDebate: vi.fn(),
+        findVoteByDebateAndUser: vi.fn(),
+        createSpectatorVote: vi.fn(),
+    } as unknown as ScoringRepository;
 }
 
-describe('SpectatorVotesService', () => {
-    it('creates a vote while debate is RUNNING', async () => {
-        const { repository, service } = createFixture();
-        repository.seedDebate({ id: 'debate-running', status: DebateStatus.Running });
+function voteRow(overrides: Partial<SpectatorVoteRow> = {}): SpectatorVoteRow {
+    return {
+        id: 'vote-1',
+        debate_id: 'debate-1',
+        user_id: 'user-1',
+        side: 'FOR',
+        created_at: new Date('2026-01-01T00:00:00Z'),
+        ...overrides,
+    };
+}
 
-        const vote = await service.createVote({
-            debateId: 'debate-running',
-            userId: 'user-1',
-            side: SpectatorVoteSide.For,
-        });
+describe('SpectatorVotesService.createVote', () => {
+    let repo: ScoringRepository;
+    let service: SpectatorVotesService;
 
-        assert.equal(vote.debateId, 'debate-running');
-        assert.equal(vote.userId, 'user-1');
-        assert.equal(vote.side, SpectatorVoteSide.For);
+    beforeEach(() => {
+        repo = makeRepoMock();
+        service = new SpectatorVotesService(repo);
     });
 
-    it('creates a vote while debate is VOTING', async () => {
-        const { repository, service } = createFixture();
-        repository.seedDebate({ id: 'debate-voting', status: DebateStatus.Voting });
+    async function rpcErrorOf(
+        run: () => Promise<unknown>,
+    ): Promise<{ code: number; message: string }> {
+        try {
+            await run();
+        } catch (err) {
+            expect(err).toBeInstanceOf(RpcException);
+            return (err as RpcException).getError() as {
+                code: number;
+                message: string;
+            };
+        }
+        throw new Error('expected an RpcException to be thrown');
+    }
 
-        const vote = await service.createVote({
-            debateId: 'debate-voting',
-            userId: 'user-1',
-            side: SpectatorVoteSide.Against,
+    it('creates a vote and maps the row to a proto response', async () => {
+        vi.mocked(repo.findDebateById).mockResolvedValue({
+            id: 'debate-1',
+            status: 'RUNNING',
         });
+        vi.mocked(repo.findVoteByDebateAndUser).mockResolvedValue(undefined);
+        vi.mocked(repo.createSpectatorVote).mockResolvedValue(voteRow());
 
-        assert.equal(vote.debateId, 'debate-voting');
-        assert.equal(vote.side, SpectatorVoteSide.Against);
-    });
-
-    it('rejects a vote when debate is CLOSED', async () => {
-        const { repository, service } = createFixture();
-        repository.seedDebate({ id: 'debate-closed', status: DebateStatus.Closed });
-
-        await assert.rejects(
-            service.createVote({
-                debateId: 'debate-closed',
-                userId: 'user-1',
-                side: SpectatorVoteSide.For,
-            }),
-            ConflictException,
+        const result = await service.createVote(
+            { debateId: 'debate-1', side: 'FOR' },
+            'user-1',
         );
+
+        expect(repo.createSpectatorVote).toHaveBeenCalledWith({
+            debateId: 'debate-1',
+            userId: 'user-1',
+            side: 'FOR',
+        });
+        expect(result).toEqual({
+            id: 'vote-1',
+            debateId: 'debate-1',
+            userId: 'user-1',
+            side: 'FOR',
+            createdAt: '2026-01-01T00:00:00.000Z',
+        });
     });
 
-    it('rejects a vote when debate is in another non-votable state', async () => {
-        const { repository, service } = createFixture();
-        repository.seedDebate({ id: 'debate-pending', status: DebateStatus.Pending });
+    it('rejects an unknown debate with NOT_FOUND', async () => {
+        vi.mocked(repo.findDebateById).mockResolvedValue(undefined);
 
-        await assert.rejects(
-            service.createVote({
-                debateId: 'debate-pending',
-                userId: 'user-1',
-                side: SpectatorVoteSide.For,
-            }),
-            ConflictException,
+        const error = await rpcErrorOf(() =>
+            service.createVote({ debateId: 'missing', side: 'FOR' }, 'user-1'),
         );
+
+        expect(error.code).toBe(status.NOT_FOUND);
+        expect(repo.createSpectatorVote).not.toHaveBeenCalled();
     });
 
-    it('rejects an invalid side', async () => {
-        const { repository, service } = createFixture();
-        repository.seedDebate({ id: 'debate-running', status: DebateStatus.Running });
+    it('rejects a non-votable debate with FAILED_PRECONDITION', async () => {
+        vi.mocked(repo.findDebateById).mockResolvedValue({
+            id: 'debate-1',
+            status: 'CLOSED',
+        });
 
-        await assert.rejects(
-            service.createVote({
-                debateId: 'debate-running',
-                userId: 'user-1',
-                side: 'PRO',
-            }),
-            BadRequestException,
+        const error = await rpcErrorOf(() =>
+            service.createVote({ debateId: 'debate-1', side: 'FOR' }, 'user-1'),
         );
+
+        expect(error.code).toBe(status.FAILED_PRECONDITION);
     });
 
-    it('rejects a vote on an unknown debate', async () => {
-        const { service } = createFixture();
+    it('rejects a duplicate vote (pre-check) with ALREADY_EXISTS', async () => {
+        vi.mocked(repo.findDebateById).mockResolvedValue({
+            id: 'debate-1',
+            status: 'RUNNING',
+        });
+        vi.mocked(repo.findVoteByDebateAndUser).mockResolvedValue(voteRow());
 
-        await assert.rejects(
-            service.createVote({
-                debateId: 'missing-debate',
-                userId: 'user-1',
-                side: SpectatorVoteSide.For,
-            }),
-            NotFoundException,
+        const error = await rpcErrorOf(() =>
+            service.createVote({ debateId: 'debate-1', side: 'AGAINST' }, 'user-1'),
         );
+
+        expect(error.code).toBe(status.ALREADY_EXISTS);
+        expect(repo.createSpectatorVote).not.toHaveBeenCalled();
     });
 
-    it('rejects a second vote by the same user on the same debate', async () => {
-        const { repository, service } = createFixture();
-        repository.seedDebate({ id: 'debate-running', status: DebateStatus.Running });
-
-        await service.createVote({
-            debateId: 'debate-running',
-            userId: 'user-1',
-            side: SpectatorVoteSide.For,
+    it('translates a unique-violation race on insert to ALREADY_EXISTS', async () => {
+        vi.mocked(repo.findDebateById).mockResolvedValue({
+            id: 'debate-1',
+            status: 'RUNNING',
         });
-
-        await assert.rejects(
-            service.createVote({
-                debateId: 'debate-running',
-                userId: 'user-1',
-                side: SpectatorVoteSide.Against,
-            }),
-            ConflictException,
+        vi.mocked(repo.findVoteByDebateAndUser).mockResolvedValue(undefined);
+        vi.mocked(repo.createSpectatorVote).mockRejectedValue(
+            new DuplicateSpectatorVoteError('debate-1', 'user-1'),
         );
+
+        const error = await rpcErrorOf(() =>
+            service.createVote({ debateId: 'debate-1', side: 'FOR' }, 'user-1'),
+        );
+
+        expect(error.code).toBe(status.ALREADY_EXISTS);
+    });
+});
+
+describe('createSpectatorVoteSchema', () => {
+    it('accepts and trims a valid payload', () => {
+        const result = createSpectatorVoteSchema.safeParse({
+            debateId: '  debate-1 ',
+            side: 'FOR',
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.success && result.data).toEqual({
+            debateId: 'debate-1',
+            side: 'FOR',
+        });
     });
 
-    it('allows two different users to vote on the same debate', async () => {
-        const { repository, service } = createFixture();
-        repository.seedDebate({ id: 'debate-running', status: DebateStatus.Running });
-
-        const firstVote = await service.createVote({
-            debateId: 'debate-running',
-            userId: 'user-1',
-            side: SpectatorVoteSide.For,
-        });
-        const secondVote = await service.createVote({
-            debateId: 'debate-running',
-            userId: 'user-2',
-            side: SpectatorVoteSide.Against,
+    it('rejects an unknown side', () => {
+        const result = createSpectatorVoteSchema.safeParse({
+            debateId: 'debate-1',
+            side: 'PRO',
         });
 
-        assert.equal(firstVote.userId, 'user-1');
-        assert.equal(secondVote.userId, 'user-2');
+        expect(result.success).toBe(false);
     });
 
-    it('allows the same user to vote on two different debates', async () => {
-        const { repository, service } = createFixture();
-        repository.seedDebate({ id: 'first-debate', status: DebateStatus.Running });
-        repository.seedDebate({ id: 'second-debate', status: DebateStatus.Voting });
-
-        const firstVote = await service.createVote({
-            debateId: 'first-debate',
-            userId: 'user-1',
-            side: SpectatorVoteSide.For,
-        });
-        const secondVote = await service.createVote({
-            debateId: 'second-debate',
-            userId: 'user-1',
-            side: SpectatorVoteSide.Against,
+    it('rejects a blank debateId', () => {
+        const result = createSpectatorVoteSchema.safeParse({
+            debateId: '   ',
+            side: 'FOR',
         });
 
-        assert.equal(firstVote.debateId, 'first-debate');
-        assert.equal(secondVote.debateId, 'second-debate');
-        assert.equal(firstVote.userId, secondVote.userId);
-    });
-
-    it('creates a vote after a debate is upserted through the runtime TCP handler', async () => {
-        const { controller, service } = createFixture();
-
-        const debate = await controller.upsertDebate({
-            debateId: 'runtime-debate',
-            status: DebateStatus.Running,
-        });
-        const vote = await service.createVote({
-            debateId: 'runtime-debate',
-            userId: 'user-1',
-            side: SpectatorVoteSide.For,
-        });
-
-        assert.equal(debate.id, 'runtime-debate');
-        assert.equal(debate.status, DebateStatus.Running);
-        assert.equal(vote.debateId, 'runtime-debate');
+        expect(result.success).toBe(false);
     });
 });

@@ -1,94 +1,40 @@
-import { BadRequestException, Controller, HttpException, Inject } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
-import { isDebateStatus } from '../debates/debate.model';
-import type { Debate } from '../debates/debate.model';
-import { SCORING_REPOSITORY } from './scoring.repository';
-import type { ScoringRepository } from './scoring.repository';
-import type { SpectatorVote } from '../votes/spectator-vote.model';
+import {
+    type CreateSpectatorVoteRequest,
+    createSpectatorVoteSchema,
+    type DebateResponse,
+    ScoringServiceControllerMethods,
+    type SpectatorVoteResponse,
+    type UpsertDebateRequest,
+    upsertDebateSchema,
+    type ScoringServiceController,
+} from '@contracts/scoring';
+import { Controller } from '@nestjs/common';
+import { Payload } from '@nestjs/microservices';
+import { ZodRpcValidationPipe } from '@repo/common/pipes';
+import { GrpcUser, type GrpcPrincipal } from '@repo/common/grpc';
+import { ScoringService } from './scoring.service';
 import { SpectatorVotesService } from '../votes/spectator-votes.service';
-import type { CreateSpectatorVoteCommand } from '../votes/spectator-votes.service';
-
-type UpsertDebateCommand = {
-    debateId?: string;
-    status?: string;
-};
 
 @Controller()
-export class ScoringController {
+@ScoringServiceControllerMethods()
+export class ScoringController implements ScoringServiceController {
     constructor(
         private readonly spectatorVotes: SpectatorVotesService,
-        @Inject(SCORING_REPOSITORY)
-        private readonly scoringRepository: ScoringRepository,
+        private readonly scoringService: ScoringService,
     ) {}
 
-    @MessagePattern({ cmd: 'scoring.spectator-vote.create' })
-    async createSpectatorVote(
-        @Payload() payload: CreateSpectatorVoteCommand,
-    ): Promise<SpectatorVote> {
-        try {
-            return await this.spectatorVotes.createVote(payload);
-        } catch (error) {
-            if (error instanceof HttpException) {
-                throw new RpcException({
-                    statusCode: error.getStatus(),
-                    message: this.getHttpExceptionMessage(error),
-                });
-            }
-            throw error;
-        }
+    createSpectatorVote(
+        @Payload(new ZodRpcValidationPipe(createSpectatorVoteSchema))
+        request: CreateSpectatorVoteRequest,
+        @GrpcUser() user: GrpcPrincipal,
+    ): Promise<SpectatorVoteResponse> {
+        return this.spectatorVotes.createVote(request, user.id);
     }
 
-    @MessagePattern({ cmd: 'scoring.debate.upsert' })
-    async upsertDebate(@Payload() payload: UpsertDebateCommand | undefined): Promise<Debate> {
-        try {
-            const debateId = payload?.debateId?.trim();
-
-            if (!debateId) {
-                throw new BadRequestException('debateId is required');
-            }
-
-            if (!payload?.status || !isDebateStatus(payload.status)) {
-                throw new BadRequestException('status is invalid');
-            }
-
-            return await this.scoringRepository.upsertDebate({
-                debateId,
-                status: payload.status,
-            });
-        } catch (error) {
-            if (error instanceof HttpException) {
-                throw new RpcException({
-                    statusCode: error.getStatus(),
-                    message: this.getHttpExceptionMessage(error),
-                });
-            }
-            throw error;
-        }
-    }
-
-    private getHttpExceptionMessage(error: HttpException): string {
-        const response = error.getResponse();
-
-        if (typeof response === 'string') {
-            return response;
-        }
-
-        if (
-            typeof response === 'object' &&
-            response !== null &&
-            'message' in response
-        ) {
-            const message = response.message;
-
-            if (Array.isArray(message)) {
-                return message.join(', ');
-            }
-
-            if (typeof message === 'string') {
-                return message;
-            }
-        }
-
-        return error.message;
+    upsertDebate(
+        @Payload(new ZodRpcValidationPipe(upsertDebateSchema))
+        request: UpsertDebateRequest,
+    ): Promise<DebateResponse> {
+        return this.scoringService.upsertDebate(request);
     }
 }
