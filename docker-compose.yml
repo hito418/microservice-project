@@ -6,8 +6,8 @@ services:
         environment:
             - GATEWAY_HOST=0.0.0.0
             - GATEWAY_PORT=3000
-            - SCORING_HOST=scoring
-            - SCORING_PORT=4002
+            - SCORING_GRPC_HOST=scoring
+            - SCORING_GRPC_PORT=50052
             - AUTH_GRPC_HOST=auth
             - AUTH_GRPC_PORT=50051
             - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
@@ -25,10 +25,41 @@ services:
             context: .
             dockerfile: services/scoring/Dockerfile
         environment:
-            - SCORING_HOST=0.0.0.0
-            - SCORING_PORT=4002
+            - SCORING_GRPC_HOST=0.0.0.0
+            - SCORING_GRPC_PORT=50052
+            - SCORING_DB_HOST=scoring-db
+            - SCORING_DB_PORT=5432
+            - SCORING_DB_USER=scoring
+            - SCORING_DB_PASSWORD=scoring
+            - SCORING_DB_NAME=scoring
+        networks:
+            - scoring-service
+            - gateway
+        depends_on:
+            scoring-db:
+                condition: service_healthy
         ports:
-            - 4002:4002
+            - 50052:50052
+    scoring-db:
+        image: postgres:16-alpine
+        environment:
+            - POSTGRES_USER=scoring
+            - POSTGRES_PASSWORD=scoring
+            - POSTGRES_DB=scoring
+        volumes:
+            - scoring-db-data:/var/lib/postgresql/data
+        ports:
+            # Host 5434 → container 5432: avoids clashing with the auth-db (5433)
+            # and other local Postgres instances. In-cluster traffic still uses
+            # scoring-db:5432 over the scoring-service network.
+            - 5434:5432
+        networks:
+            - scoring-service
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U scoring -d scoring"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
     auth:
         build:
             context: .
@@ -90,7 +121,9 @@ services:
 volumes:
     redis-data:
     auth-db-data:
+    scoring-db-data:
 
 networks:
     auth-service:
+    scoring-service:
     gateway:
