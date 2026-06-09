@@ -12,6 +12,10 @@
         "./pipes": {
             "types": "./dist/pipes/index.d.ts",
             "default": "./dist/pipes/index.js"
+        },
+        "./grpc": {
+            "types": "./dist/grpc/index.d.ts",
+            "default": "./dist/grpc/index.js"
         }
     },
     "files": [
