@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package scoring.v1;
+
+service ScoringService {
+    rpc CreateSpectatorVote (CreateSpectatorVoteRequest) returns (SpectatorVoteResponse);
+    rpc UpsertDebate (UpsertDebateRequest) returns (DebateResponse);
+}
+
+message CreateSpectatorVoteRequest {
+    string debate_id = 1;
+    // One of: FOR, AGAINST
+    string side = 2;
+    // The voter's identity travels out-of-band as gRPC metadata
+    // (see @repo/common/grpc user-metadata), not as a message field.
+}
+
+message SpectatorVoteResponse {
+    string id = 1;
+    string debate_id = 2;
+    string user_id = 3;
+    string side = 4;
+    // RFC 3339 / ISO 8601
+    string created_at = 5;
+}
+
+message UpsertDebateRequest {
+    string debate_id = 1;
+    // One of: PENDING, RUNNING, VOTING, CLOSED
+    string status = 2;
+}
+
+message DebateResponse {
+    string id = 1;
+    string status = 2;
+}
