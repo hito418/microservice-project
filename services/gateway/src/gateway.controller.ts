@@ -1,41 +1,51 @@
 import {
+    SCORING_SERVICE_NAME,
+    type ScoringServiceClient,
+    type SpectatorVoteResponse,
+} from '@contracts/scoring';
+import { status as grpcStatus } from '@grpc/grpc-js';
+import {
     BadRequestException,
+    ConflictException,
     Controller,
-    HttpException,
+    HttpCode,
+    HttpStatus,
     Inject,
+    InternalServerErrorException,
+    NotFoundException,
+    type OnModuleInit,
     Param,
     Post,
     UseGuards,
     Body,
-    HttpStatus,
 } from '@nestjs/common';
-import { type ClientProxy } from '@nestjs/microservices';
+import { type ClientGrpc } from '@nestjs/microservices';
+import { attachUserMetadata } from '@repo/common/grpc';
 import { firstValueFrom } from 'rxjs';
 import type { AuthenticatedUser } from './auth/authenticated-user';
 import { AuthUserGuard } from './auth/auth-user.guard';
 import { CurrentUser } from './auth/current-user.decorator';
 import { CreateSpectatorVoteDto } from './votes/create-spectator-vote.dto';
 
-type SpectatorVoteResponse = {
-    id: string;
-    debateId: string;
-    userId: string;
-    side: string;
-    createdAt: string;
-};
-
-type RpcErrorPayload = {
-    statusCode?: number;
-    message?: string | string[];
-};
+interface GrpcError {
+    code?: number;
+}
 
 @Controller()
-export class GatewayController {
+export class GatewayController implements OnModuleInit {
+    private scoring!: ScoringServiceClient;
+
     constructor(
-        @Inject('SCORING_SERVICE') private readonly scoringClient: ClientProxy,
+        @Inject('SCORING_CLIENT') private readonly scoringClient: ClientGrpc,
     ) {}
 
+    onModuleInit(): void {
+        this.scoring =
+            this.scoringClient.getService<ScoringServiceClient>(SCORING_SERVICE_NAME);
+    }
+
     @Post('debates/:debateId/votes')
+    @HttpCode(HttpStatus.CREATED)
     @UseGuards(AuthUserGuard)
     async createSpectatorVote(
         @Param('debateId') debateId: string,
@@ -48,55 +58,29 @@ export class GatewayController {
 
         try {
             return await firstValueFrom(
-                this.scoringClient.send<SpectatorVoteResponse>(
-                    { cmd: 'scoring.spectator-vote.create' },
-                    { debateId, userId: user.id, side: body.side },
+                this.scoring.createSpectatorVote(
+                    { debateId, side: body.side ?? '' },
+                    attachUserMetadata(user),
                 ),
             );
         } catch (error) {
-            throw this.toHttpException(error);
+            throw this.mapScoringError(error);
         }
     }
 
-    private toHttpException(error: unknown): HttpException {
-        const payload = this.getRpcErrorPayload(error);
-        const statusCode = payload?.statusCode ?? HttpStatus.INTERNAL_SERVER_ERROR;
-        const message = payload?.message ?? 'Scoring service request failed';
-
-        return new HttpException({ message }, statusCode);
-    }
-
-    private getRpcErrorPayload(error: unknown): RpcErrorPayload | undefined {
-        if (!this.isRecord(error)) {
-            return undefined;
+    private mapScoringError(error: unknown): Error {
+        const code = (error as GrpcError | null)?.code;
+        switch (code) {
+            case grpcStatus.INVALID_ARGUMENT:
+                return new BadRequestException('invalid vote payload');
+            case grpcStatus.NOT_FOUND:
+                return new NotFoundException('debate not found');
+            case grpcStatus.FAILED_PRECONDITION:
+                return new ConflictException('debate is not open for spectator votes');
+            case grpcStatus.ALREADY_EXISTS:
+                return new ConflictException('you have already voted on this debate');
+            default:
+                return new InternalServerErrorException('scoring service request failed');
         }
-
-        if (this.isRpcErrorPayload(error)) {
-            return error;
-        }
-
-        const response = error.response;
-        if (this.isRpcErrorPayload(response)) {
-            return response;
-        }
-
-        return undefined;
-    }
-
-    private isRpcErrorPayload(value: unknown): value is RpcErrorPayload {
-        if (!this.isRecord(value)) {
-            return false;
-        }
-
-        return (
-            (typeof value.statusCode === 'number' || value.statusCode === undefined) &&
-            (typeof value.message === 'string' ||
-                Array.isArray(value.message) ||
-                value.message === undefined)
-        );
-    }
-
-    private isRecord(value: unknown): value is Record<string, unknown> {
-        return typeof value === 'object' && value !== null;
     }
 }

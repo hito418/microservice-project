@@ -20,11 +20,11 @@ export class ConfigService {
         return parsePort('GATEWAY_PORT', 3000);
     }
 
-    get scoringHost(): string {
-        return process.env.SCORING_HOST ?? '127.0.0.1';
+    get scoringGrpcHost(): string {
+        return process.env.SCORING_GRPC_HOST ?? '127.0.0.1';
     }
-    get scoringPort(): number {
-        return parsePort('SCORING_PORT', 4002);
+    get scoringGrpcPort(): number {
+        return parsePort('SCORING_GRPC_PORT', 50052);
     }
 
     get authGrpcHost(): string {
