@@ -389,6 +389,12 @@ importers:
       '@repo/common':
         specifier: workspace:*
         version: link:../../packages/common
+      '@repo/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
+      bullmq:
+        specifier: ^5.34.0
+        version: 5.76.10
       ioredis:
         specifier: ^5.4.2
         version: 5.10.1

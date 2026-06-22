@@ -22,6 +22,8 @@
         "@nestjs/core": "catalog:",
         "@nestjs/microservices": "catalog:",
         "@repo/common": "workspace:*",
+        "@repo/queue": "workspace:*",
+        "bullmq": "^5.34.0",
         "ioredis": "^5.4.2",
         "reflect-metadata": "catalog:",
         "rxjs": "catalog:",
