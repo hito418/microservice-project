@@ -1,0 +1,13 @@
+{
+  "extends": "@repo/ts-config/node.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    // turbo is the cache layer for this leaf app; tsc incremental only
+    // desyncs its .tsbuildinfo from a dist that turbo restores/wipes.
+    "incremental": false
+  },
+  "include": ["src/**/*"]
+}
