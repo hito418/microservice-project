@@ -4,6 +4,15 @@ export const DISPLAY_NAME_MAX_LENGTH = 255;
 export const AVATAR_URL_MAX_LENGTH = 2048;
 export const PLAYER_STATS_RESULTS = ['WIN', 'LOSS', 'DRAW'] as const;
 export type PlayerStatsResult = (typeof PLAYER_STATS_RESULTS)[number];
+export const RANK_TIERS = [
+    'BRONZE',
+    'SILVER',
+    'GOLD',
+    'PLATINUM',
+    'DIAMOND',
+    'MASTER',
+] as const;
+export type RankTier = (typeof RANK_TIERS)[number];
 
 const displayNameSchema = z
     .string()

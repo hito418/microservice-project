@@ -85,16 +85,17 @@ export interface PlayerStatsResponse {
   createdAt: string;
   /** RFC 3339 / ISO 8601 */
   updatedAt: string;
+  /** Derived from elo. One of: BRONZE, SILVER, GOLD, PLATINUM, DIAMOND, MASTER. */
+  rankTier: string;
 }
 
 export const PROFILE_V1_PACKAGE_NAME = "profile.v1";
 
 /**
- * Profiles are 1:1 with users. A profile's owner is identified by the
- * authenticated principal that travels out-of-band as gRPC metadata
- * (see @repo/common/grpc user-metadata) — mutating RPCs therefore do NOT
- * carry a user_id field. GetProfile is a public read and takes the target
- * user_id explicitly.
+ * Profiles are 1:1 with users. Profile ownership for Create/Update/Delete is
+ * identified by the authenticated principal that travels out-of-band as gRPC
+ * metadata (see @repo/common/grpc user-metadata). Public/profile read RPCs and
+ * internal player-stats RPCs carry the target user_id explicitly.
  */
 
 export interface ProfileServiceClient {
@@ -117,11 +118,10 @@ export interface ProfileServiceClient {
 }
 
 /**
- * Profiles are 1:1 with users. A profile's owner is identified by the
- * authenticated principal that travels out-of-band as gRPC metadata
- * (see @repo/common/grpc user-metadata) — mutating RPCs therefore do NOT
- * carry a user_id field. GetProfile is a public read and takes the target
- * user_id explicitly.
+ * Profiles are 1:1 with users. Profile ownership for Create/Update/Delete is
+ * identified by the authenticated principal that travels out-of-band as gRPC
+ * metadata (see @repo/common/grpc user-metadata). Public/profile read RPCs and
+ * internal player-stats RPCs carry the target user_id explicitly.
  */
 
 export interface ProfileServiceController {

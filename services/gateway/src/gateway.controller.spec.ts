@@ -115,6 +115,7 @@ function createController(
         losses: 1,
         draws: 0,
         winrate: 67,
+        rankTier: 'BRONZE',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
     }));
@@ -546,6 +547,7 @@ describe('GatewayController player stats', () => {
                         losses: 1,
                         draws: 0,
                         winrate: 75,
+                        rankTier: 'BRONZE',
                         createdAt: '2026-01-01T00:00:00.000Z',
                         updatedAt: '2026-01-02T00:00:00.000Z',
                     };
@@ -569,6 +571,7 @@ describe('GatewayController player stats', () => {
             losses: 1,
             draws: 0,
             winrate: 75,
+            rankTier: 'BRONZE',
             createdAt: '2026-01-01T00:00:00.000Z',
             updatedAt: '2026-01-02T00:00:00.000Z',
         });

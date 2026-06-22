@@ -17,6 +17,7 @@ import {
     ProfileAlreadyExistsError,
     ProfileRepository,
 } from './profile.repository';
+import { deriveRankTierFromElo } from './rank-tier';
 
 @Injectable()
 export class ProfileService {
@@ -180,6 +181,7 @@ function toStatsResponse(stats: PlayerStatsRow): PlayerStatsResponse {
         winrate: winrate(stats.wins, stats.debates_count),
         createdAt: stats.created_at.toISOString(),
         updatedAt: stats.updated_at.toISOString(),
+        rankTier: deriveRankTierFromElo(stats.elo),
     };
 }
 

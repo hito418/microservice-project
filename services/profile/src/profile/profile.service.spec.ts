@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerStatsRow, ProfileRow } from '../db/database.types';
 import { ProfileAlreadyExistsError, ProfileRepository } from './profile.repository';
 import { ProfileService } from './profile.service';
+import { deriveRankTierFromElo } from './rank-tier';
 
 const USER_ID = '11111111-1111-1111-1111-111111111111';
 
@@ -56,6 +57,24 @@ async function rpcErrorOf(
     }
     throw new Error('expected the call to throw');
 }
+
+describe('deriveRankTierFromElo', () => {
+    it.each([
+        [0, 'BRONZE'],
+        [1199, 'BRONZE'],
+        [1200, 'SILVER'],
+        [1399, 'SILVER'],
+        [1400, 'GOLD'],
+        [1599, 'GOLD'],
+        [1600, 'PLATINUM'],
+        [1799, 'PLATINUM'],
+        [1800, 'DIAMOND'],
+        [1999, 'DIAMOND'],
+        [2000, 'MASTER'],
+    ] as const)('maps elo %i to %s', (elo, rankTier) => {
+        expect(deriveRankTierFromElo(elo)).toBe(rankTier);
+    });
+});
 
 describe('ProfileService', () => {
     let repo: ProfileRepository;
@@ -182,7 +201,7 @@ describe('ProfileService', () => {
             vi.mocked(repo.findStatsByUserId).mockResolvedValue(
                 playerStatsRow({
                     xp: 250,
-                    elo: 1040,
+                    elo: 1400,
                     debates_count: 3,
                     wins: 2,
                     losses: 1,
@@ -195,7 +214,7 @@ describe('ProfileService', () => {
             expect(result).toEqual({
                 userId: USER_ID,
                 xp: 250,
-                elo: 1040,
+                elo: 1400,
                 debatesCount: 3,
                 wins: 2,
                 losses: 1,
@@ -203,6 +222,7 @@ describe('ProfileService', () => {
                 winrate: 67,
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-01T00:00:00.000Z',
+                rankTier: 'GOLD',
             });
         });
 
@@ -230,7 +250,7 @@ describe('ProfileService', () => {
             vi.mocked(repo.upsertStats).mockResolvedValue(
                 playerStatsRow({
                     xp: 500,
-                    elo: 1100,
+                    elo: 1600,
                     debates_count: 4,
                     wins: 3,
                     losses: 1,
@@ -240,7 +260,7 @@ describe('ProfileService', () => {
             const result = await service.upsertPlayerStats({
                 userId: USER_ID,
                 xp: 500,
-                elo: 1100,
+                elo: 1600,
                 debatesCount: 4,
                 wins: 3,
                 losses: 1,
@@ -250,13 +270,14 @@ describe('ProfileService', () => {
             expect(repo.upsertStats).toHaveBeenCalledWith({
                 userId: USER_ID,
                 xp: 500,
-                elo: 1100,
+                elo: 1600,
                 debatesCount: 4,
                 wins: 3,
                 losses: 1,
                 draws: 0,
             });
             expect(result.winrate).toBe(75);
+            expect(result.rankTier).toBe('PLATINUM');
         });
 
         it('rejects mismatched debatesCount', async () => {
@@ -326,6 +347,7 @@ describe('ProfileService', () => {
                 losses: 0,
                 draws: 0,
                 winrate: 100,
+                rankTier: 'BRONZE',
             });
         });
 
