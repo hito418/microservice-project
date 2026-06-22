@@ -1,12 +1,16 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { ParticipantInfo, RoomResponse } from '@contracts/debate';
 import { PARTICIPANT_SIDES } from '@contracts/debate';
 import type { ParticipantRow, RoomRow } from '../db/database.types';
 import { DebateState, isValidTransition } from './debate-state';
 import { RoomRepository } from './room.repository';
 
+const PREP_DURATION_MS = 60_000;
+
 @Injectable()
 export class DebateService {
+    private readonly logger = new Logger(DebateService.name);
+
     constructor(@Inject(RoomRepository) private readonly repo: RoomRepository) {}
 
     async createRoom(debateId: string): Promise<RoomResponse> {
@@ -63,9 +67,26 @@ export class DebateService {
                 await this.repo.setQuestion(roomId, question.id);
                 room.question_id = question.id;
             }
+            this.schedulePrepTimer(roomId);
         }
 
         return this.buildResponse(room, participants);
+    }
+
+    private schedulePrepTimer(roomId: string): void {
+        this.logger.log(`Room ${roomId}: prep timer started (${PREP_DURATION_MS / 1000}s)`);
+        setTimeout(() => {
+            this.advanceFromPrep(roomId).catch((err: unknown) =>
+                this.logger.error(`Room ${roomId}: prep timer failed`, err),
+            );
+        }, PREP_DURATION_MS);
+    }
+
+    private async advanceFromPrep(roomId: string): Promise<void> {
+        const room = await this.repo.findById(roomId);
+        if (!room || room.state !== DebateState.PREPARATION) return;
+        await this.repo.transitionState(roomId, DebateState.PREPARATION, DebateState.RUNNING);
+        this.logger.log(`Room ${roomId}: PREPARATION → RUNNING`);
     }
 
     private async buildResponse(room: RoomRow, participants?: ParticipantRow[]): Promise<RoomResponse> {
