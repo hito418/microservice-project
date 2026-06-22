@@ -1,7 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { KYSELY } from '../db/database.module';
-import type { Database, DebateRow, SpectatorVoteRow } from '../db/database.types';
+import type {
+    Database,
+    DebateAiAnalysisResultRow,
+    DebateRow,
+    SpectatorVoteRow,
+} from '../db/database.types';
 
 const SPECTATOR_VOTES_UNIQUE = 'spectator_votes_debate_user_unique';
 
@@ -25,6 +30,17 @@ export type UpsertDebateRecord = {
 export type SpectatorVoteCount = {
     side: string;
     votes: number;
+};
+
+export type UpsertAiAnalysisResultRecord = {
+    debateId: string;
+    status: string;
+    summary?: string | null;
+    forScore?: number | null;
+    againstScore?: number | null;
+    forFeedback?: string | null;
+    againstFeedback?: string | null;
+    errorMessage?: string | null;
 };
 
 function isDuplicateVote(err: unknown): boolean {
@@ -99,5 +115,48 @@ export class ScoringRepository {
             .where('debate_id', '=', debateId)
             .groupBy('side')
             .execute();
+    }
+
+    upsertAiAnalysisResult(
+        input: UpsertAiAnalysisResultRecord,
+    ): Promise<DebateAiAnalysisResultRow> {
+        const values = {
+            debate_id: input.debateId,
+            status: input.status,
+            summary: input.summary ?? null,
+            for_score: input.forScore ?? null,
+            against_score: input.againstScore ?? null,
+            for_feedback: input.forFeedback ?? null,
+            against_feedback: input.againstFeedback ?? null,
+            error_message: input.errorMessage ?? null,
+        };
+
+        return this.db
+            .insertInto('debate_ai_analysis_results')
+            .values(values)
+            .onConflict((oc) =>
+                oc.column('debate_id').doUpdateSet({
+                    status: values.status,
+                    summary: values.summary,
+                    for_score: values.for_score,
+                    against_score: values.against_score,
+                    for_feedback: values.for_feedback,
+                    against_feedback: values.against_feedback,
+                    error_message: values.error_message,
+                    updated_at: sql<Date>`now()`,
+                }),
+            )
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    }
+
+    findAiAnalysisResultByDebateId(
+        debateId: string,
+    ): Promise<DebateAiAnalysisResultRow | undefined> {
+        return this.db
+            .selectFrom('debate_ai_analysis_results')
+            .selectAll()
+            .where('debate_id', '=', debateId)
+            .executeTakeFirst();
     }
 }

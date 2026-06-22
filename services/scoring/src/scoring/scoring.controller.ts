@@ -1,11 +1,16 @@
 import {
+    type AiAnalysisResultResponse,
     type AudienceVoteSummaryRequest,
     type AudienceVoteSummaryResponse,
     audienceVoteSummarySchema,
     type CreateSpectatorVoteRequest,
     createSpectatorVoteSchema,
     type DebateResponse,
+    type GetAiAnalysisResultRequest,
+    getAiAnalysisResultSchema,
     ScoringServiceControllerMethods,
+    type StoreAiAnalysisResultRequest,
+    storeAiAnalysisResultSchema,
     type SpectatorVoteResponse,
     type UpsertDebateRequest,
     upsertDebateSchema,
@@ -39,6 +44,20 @@ export class ScoringController implements ScoringServiceController {
         request: AudienceVoteSummaryRequest,
     ): Promise<AudienceVoteSummaryResponse> {
         return this.spectatorVotes.getSummary(request);
+    }
+
+    storeAiAnalysisResult(
+        @Payload(new ZodRpcValidationPipe(storeAiAnalysisResultSchema))
+        request: StoreAiAnalysisResultRequest,
+    ): Promise<AiAnalysisResultResponse> {
+        return this.scoringService.storeAiAnalysisResult(request);
+    }
+
+    getAiAnalysisResult(
+        @Payload(new ZodRpcValidationPipe(getAiAnalysisResultSchema))
+        request: GetAiAnalysisResultRequest,
+    ): Promise<AiAnalysisResultResponse> {
+        return this.scoringService.getAiAnalysisResult(request);
     }
 
     upsertDebate(

@@ -38,6 +38,37 @@ export interface AudienceVoteSummaryResponse {
   againstScore: number;
 }
 
+export interface StoreAiAnalysisResultRequest {
+  debateId: string;
+  /** One of: COMPLETED, FAILED */
+  status: string;
+  summary?: string | undefined;
+  forScore?: number | undefined;
+  againstScore?: number | undefined;
+  forFeedback?: string | undefined;
+  againstFeedback?: string | undefined;
+  errorMessage?: string | undefined;
+}
+
+export interface GetAiAnalysisResultRequest {
+  debateId: string;
+}
+
+export interface AiAnalysisResultResponse {
+  debateId: string;
+  status: string;
+  summary?: string | undefined;
+  forScore?: number | undefined;
+  againstScore?: number | undefined;
+  forFeedback?: string | undefined;
+  againstFeedback?: string | undefined;
+  errorMessage?: string | undefined;
+  /** RFC 3339 / ISO 8601 */
+  createdAt: string;
+  /** RFC 3339 / ISO 8601 */
+  updatedAt: string;
+}
+
 export interface UpsertDebateRequest {
   debateId: string;
   /** One of: PENDING, RUNNING, VOTING, CLOSED */
@@ -56,6 +87,10 @@ export interface ScoringServiceClient {
 
   getAudienceVoteSummary(request: AudienceVoteSummaryRequest, ...rest: any): Observable<AudienceVoteSummaryResponse>;
 
+  storeAiAnalysisResult(request: StoreAiAnalysisResultRequest, ...rest: any): Observable<AiAnalysisResultResponse>;
+
+  getAiAnalysisResult(request: GetAiAnalysisResultRequest, ...rest: any): Observable<AiAnalysisResultResponse>;
+
   upsertDebate(request: UpsertDebateRequest, ...rest: any): Observable<DebateResponse>;
 }
 
@@ -70,6 +105,16 @@ export interface ScoringServiceController {
     ...rest: any
   ): Promise<AudienceVoteSummaryResponse> | Observable<AudienceVoteSummaryResponse> | AudienceVoteSummaryResponse;
 
+  storeAiAnalysisResult(
+    request: StoreAiAnalysisResultRequest,
+    ...rest: any
+  ): Promise<AiAnalysisResultResponse> | Observable<AiAnalysisResultResponse> | AiAnalysisResultResponse;
+
+  getAiAnalysisResult(
+    request: GetAiAnalysisResultRequest,
+    ...rest: any
+  ): Promise<AiAnalysisResultResponse> | Observable<AiAnalysisResultResponse> | AiAnalysisResultResponse;
+
   upsertDebate(
     request: UpsertDebateRequest,
     ...rest: any
@@ -78,7 +123,13 @@ export interface ScoringServiceController {
 
 export function ScoringServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createSpectatorVote", "getAudienceVoteSummary", "upsertDebate"];
+    const grpcMethods: string[] = [
+      "createSpectatorVote",
+      "getAudienceVoteSummary",
+      "storeAiAnalysisResult",
+      "getAiAnalysisResult",
+      "upsertDebate",
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("ScoringService", method)(constructor.prototype[method], method, descriptor);

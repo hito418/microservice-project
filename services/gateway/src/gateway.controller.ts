@@ -1,5 +1,6 @@
 import {
     SCORING_SERVICE_NAME,
+    type AiAnalysisResultResponse,
     type AudienceVoteSummaryResponse,
     type ScoringServiceClient,
     type SpectatorVoteResponse,
@@ -77,6 +78,19 @@ export class GatewayController implements OnModuleInit {
         try {
             return await firstValueFrom(
                 this.scoring.getAudienceVoteSummary({ debateId }),
+            );
+        } catch (error) {
+            throw this.mapScoringError(error);
+        }
+    }
+
+    @Get('debates/:debateId/ai-analysis')
+    async getAiAnalysisResult(
+        @Param('debateId') debateId: string,
+    ): Promise<AiAnalysisResultResponse> {
+        try {
+            return await firstValueFrom(
+                this.scoring.getAiAnalysisResult({ debateId }),
             );
         } catch (error) {
             throw this.mapScoringError(error);
