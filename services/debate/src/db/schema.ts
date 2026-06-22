@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core';
 
 export const questions = pgTable('questions', {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -13,6 +13,23 @@ export const rooms = pgTable('rooms', {
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const participants = pgTable(
+    'participants',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        roomId: uuid('room_id')
+            .notNull()
+            .references(() => rooms.id, { onDelete: 'cascade' }),
+        userId: varchar('user_id', { length: 255 }).notNull(),
+        side: varchar('side', { length: 16 }).notNull(),
+        joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+    },
+    (table) => [
+        unique('participants_room_user_unique').on(table.roomId, table.userId),
+        unique('participants_room_side_unique').on(table.roomId, table.side),
+    ],
+);
 
 export const roomTransitions = pgTable('room_transitions', {
     id: uuid('id').primaryKey().defaultRandom(),
