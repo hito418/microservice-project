@@ -4,17 +4,26 @@ import {
     computeFinalDebateScoreSchema,
     getAiAnalysisResultSchema,
     getFinalDebateScoreSchema,
+    getRandomRecentDebateForVotingSchema,
     storeAiAnalysisResultSchema,
 } from '@contracts/scoring';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Kysely } from 'kysely';
 import type {
     Database,
     DebateAiAnalysisResultRow,
     DebateFinalScoreRow,
+    DebateRow,
 } from '../db/database.types';
-import { ScoringRepository } from './scoring.repository';
+import {
+    ScoringRepository,
+    type RecentDebateForVotingCandidate,
+} from './scoring.repository';
 import { ScoringService } from './scoring.service';
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 function makeRepoMock(): ScoringRepository {
     return {
@@ -27,7 +36,18 @@ function makeRepoMock(): ScoringRepository {
         findAiAnalysisResultByDebateId: vi.fn(),
         upsertFinalDebateScore: vi.fn(),
         findFinalDebateScoreByDebateId: vi.fn(),
+        findRecentDebatesForVoting: vi.fn(),
     } as unknown as ScoringRepository;
+}
+
+function debateRow(overrides: Partial<DebateRow> = {}): DebateRow {
+    return {
+        id: 'debate-1',
+        status: 'CLOSED',
+        created_at: new Date('2026-01-01T00:00:00Z'),
+        updated_at: new Date('2026-01-01T00:00:00Z'),
+        ...overrides,
+    };
 }
 
 function aiResultRow(
@@ -44,6 +64,18 @@ function aiResultRow(
         error_message: null,
         created_at: new Date('2026-01-01T00:00:00Z'),
         updated_at: new Date('2026-01-01T00:00:00Z'),
+        ...overrides,
+    };
+}
+
+function recentDebateCandidate(
+    overrides: Partial<RecentDebateForVotingCandidate> = {},
+): RecentDebateForVotingCandidate {
+    return {
+        debateId: 'debate-1',
+        status: 'VOTING',
+        voteCount: 2,
+        referenceTime: new Date('2026-01-01T00:15:00Z'),
         ...overrides,
     };
 }
@@ -85,10 +117,7 @@ describe('ScoringService AI analysis results', () => {
     it('stores a COMPLETED result successfully', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.upsertAiAnalysisResult).mockResolvedValue(aiResultRow());
 
         const result = await service.storeAiAnalysisResult({
@@ -140,10 +169,7 @@ describe('ScoringService AI analysis results', () => {
     it('stores a FAILED result with an errorMessage', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.upsertAiAnalysisResult).mockResolvedValue(
             aiResultRow({
                 status: 'FAILED',
@@ -205,10 +231,7 @@ describe('ScoringService final debate scores', () => {
     it('computes a final score with 50/50 weighting', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 80, against_score: 20 }),
         );
@@ -249,10 +272,7 @@ describe('ScoringService final debate scores', () => {
     it('rounds .5 final scores correctly', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 67, against_score: 33 }),
         );
@@ -285,10 +305,7 @@ describe('ScoringService final debate scores', () => {
     it('computes DRAW winner', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 50, against_score: 50 }),
         );
@@ -318,10 +335,7 @@ describe('ScoringService final debate scores', () => {
     it('computes AGAINST winner', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 20, against_score: 80 }),
         );
@@ -350,10 +364,7 @@ describe('ScoringService final debate scores', () => {
     it('computes with no audience votes as 0/0 audience scores', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 80, against_score: 20 }),
         );
@@ -395,10 +406,7 @@ describe('ScoringService final debate scores', () => {
     it('rejects a missing AI analysis result', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(undefined);
 
         const error = await rpcErrorOf(() =>
@@ -412,10 +420,7 @@ describe('ScoringService final debate scores', () => {
     it('rejects a FAILED AI analysis result', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({
                 status: 'FAILED',
@@ -435,10 +440,7 @@ describe('ScoringService final debate scores', () => {
     it('rejects an incoherent COMPLETED AI analysis result', async () => {
         const repo = makeRepoMock();
         const service = new ScoringService(repo);
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: null }),
         );
@@ -475,6 +477,117 @@ describe('ScoringService final debate scores', () => {
         );
 
         expect(error.code).toBe(status.NOT_FOUND);
+    });
+});
+
+describe('ScoringService random recent debates for voting', () => {
+    it('returns a recent votable debate candidate', async () => {
+        const repo = makeRepoMock();
+        const service = new ScoringService(repo);
+        vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([
+            recentDebateCandidate(),
+        ]);
+
+        const result = await service.getRandomRecentDebateForVoting({});
+
+        expect(result).toEqual({
+            debateId: 'debate-1',
+            status: 'VOTING',
+            voteCount: 2,
+            referenceTime: '2026-01-01T00:15:00.000Z',
+        });
+    });
+
+    it('applies default maxAgeMinutes and candidatePoolSize', async () => {
+        const repo = makeRepoMock();
+        const service = new ScoringService(repo);
+        const now = new Date('2026-01-01T00:20:00Z').getTime();
+        vi.spyOn(Date, 'now').mockReturnValue(now);
+        vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([
+            recentDebateCandidate(),
+        ]);
+
+        await service.getRandomRecentDebateForVoting({});
+
+        expect(repo.findRecentDebatesForVoting).toHaveBeenCalledWith({
+            cutoff: new Date('2026-01-01T00:00:00Z'),
+            limit: 5,
+            statuses: ['RUNNING', 'VOTING'],
+        });
+    });
+
+    it('passes custom maxAgeMinutes and candidatePoolSize', async () => {
+        const repo = makeRepoMock();
+        const service = new ScoringService(repo);
+        const now = new Date('2026-01-01T00:20:00Z').getTime();
+        vi.spyOn(Date, 'now').mockReturnValue(now);
+        vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([
+            recentDebateCandidate(),
+        ]);
+
+        await service.getRandomRecentDebateForVoting({
+            maxAgeMinutes: 10,
+            candidatePoolSize: 3,
+        });
+
+        expect(repo.findRecentDebatesForVoting).toHaveBeenCalledWith({
+            cutoff: new Date('2026-01-01T00:10:00Z'),
+            limit: 3,
+            statuses: ['RUNNING', 'VOTING'],
+        });
+    });
+
+    it('returns NOT_FOUND if no candidate exists', async () => {
+        const repo = makeRepoMock();
+        const service = new ScoringService(repo);
+        vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([]);
+
+        const error = await rpcErrorOf(() =>
+            service.getRandomRecentDebateForVoting({}),
+        );
+
+        expect(error.code).toBe(status.NOT_FOUND);
+    });
+
+    it('chooses randomly within the least-voted candidate pool returned by repository', async () => {
+        const repo = makeRepoMock();
+        const service = new ScoringService(repo);
+        vi.spyOn(Math, 'random').mockReturnValue(0.75);
+        vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([
+            recentDebateCandidate({ debateId: 'debate-1', voteCount: 0 }),
+            recentDebateCandidate({ debateId: 'debate-2', voteCount: 1 }),
+            recentDebateCandidate({ debateId: 'debate-3', voteCount: 1 }),
+        ]);
+
+        const result = await service.getRandomRecentDebateForVoting({
+            candidatePoolSize: 3,
+        });
+
+        expect(result.debateId).toBe('debate-3');
+    });
+
+    it('rejects invalid maxAgeMinutes', async () => {
+        const repo = makeRepoMock();
+        const service = new ScoringService(repo);
+
+        const error = await rpcErrorOf(() =>
+            service.getRandomRecentDebateForVoting({ maxAgeMinutes: 0 }),
+        );
+
+        expect(error.code).toBe(status.INVALID_ARGUMENT);
+        expect(repo.findRecentDebatesForVoting).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid candidatePoolSize', async () => {
+        const repo = makeRepoMock();
+        const service = new ScoringService(repo);
+
+        const error = await rpcErrorOf(() =>
+            service.getRandomRecentDebateForVoting({ candidatePoolSize: 101 }),
+        );
+
+        expect(error.code).toBe(status.INVALID_ARGUMENT);
+        expect(repo.findRecentDebatesForVoting).not.toHaveBeenCalled();
     });
 });
 
@@ -583,6 +696,47 @@ describe('final debate score schemas', () => {
     it('rejects an empty get debateId', () => {
         expect(
             getFinalDebateScoreSchema.safeParse({ debateId: '   ' }).success,
+        ).toBe(false);
+    });
+});
+
+describe('getRandomRecentDebateForVotingSchema', () => {
+    it('applies defaults', () => {
+        expect(getRandomRecentDebateForVotingSchema.parse({})).toEqual({
+            maxAgeMinutes: 20,
+            candidatePoolSize: 5,
+        });
+    });
+
+    it('rejects maxAgeMinutes lower than 1', () => {
+        expect(
+            getRandomRecentDebateForVotingSchema.safeParse({
+                maxAgeMinutes: 0,
+            }).success,
+        ).toBe(false);
+    });
+
+    it('rejects maxAgeMinutes greater than 1440', () => {
+        expect(
+            getRandomRecentDebateForVotingSchema.safeParse({
+                maxAgeMinutes: 1441,
+            }).success,
+        ).toBe(false);
+    });
+
+    it('rejects candidatePoolSize lower than 1', () => {
+        expect(
+            getRandomRecentDebateForVotingSchema.safeParse({
+                candidatePoolSize: 0,
+            }).success,
+        ).toBe(false);
+    });
+
+    it('rejects candidatePoolSize greater than 100', () => {
+        expect(
+            getRandomRecentDebateForVotingSchema.safeParse({
+                candidatePoolSize: 101,
+            }).success,
         ).toBe(false);
     });
 });
@@ -808,5 +962,85 @@ describe('ScoringRepository final score queries', () => {
 
         expect(db.selectFrom).toHaveBeenCalledWith('debate_final_scores');
         expect(captured.where).toEqual(['debate_id', '=', 'debate-1']);
+    });
+});
+
+describe('ScoringRepository recent debate voting candidates', () => {
+    it('filters votable recent debates, counts votes, orders by fewest votes, and limits the pool', async () => {
+        const cutoff = new Date('2026-01-01T00:00:00Z');
+        const rows = [
+            {
+                debate_id: 'debate-1',
+                status: 'VOTING',
+                vote_count: 1,
+                reference_time: new Date('2026-01-01T00:10:00Z'),
+            },
+        ];
+        const captured: {
+            where: unknown[][];
+            groupBy?: unknown;
+            orderBy: unknown[][];
+            limit?: number;
+        } = { where: [], orderBy: [] };
+        const chain = {
+            leftJoin: vi.fn(() => chain),
+            select: vi.fn(() => chain),
+            where: vi.fn((...args: unknown[]) => {
+                captured.where.push(args);
+                return chain;
+            }),
+            groupBy: vi.fn((args: unknown) => {
+                captured.groupBy = args;
+                return chain;
+            }),
+            orderBy: vi.fn((...args: unknown[]) => {
+                captured.orderBy.push(args);
+                return chain;
+            }),
+            limit: vi.fn((limit: number) => {
+                captured.limit = limit;
+                return chain;
+            }),
+            execute: vi.fn().mockResolvedValue(rows),
+        };
+        const db = {
+            selectFrom: vi.fn(() => chain),
+        } as unknown as Kysely<Database>;
+        const repo = new ScoringRepository(db);
+
+        await expect(
+            repo.findRecentDebatesForVoting({
+                cutoff,
+                limit: 5,
+                statuses: ['RUNNING', 'VOTING'],
+            }),
+        ).resolves.toEqual([
+            {
+                debateId: 'debate-1',
+                status: 'VOTING',
+                voteCount: 1,
+                referenceTime: new Date('2026-01-01T00:10:00Z'),
+            },
+        ]);
+
+        expect(db.selectFrom).toHaveBeenCalledWith('debates');
+        expect(chain.leftJoin).toHaveBeenCalledWith(
+            'spectator_votes',
+            'spectator_votes.debate_id',
+            'debates.id',
+        );
+        expect(captured.where).toEqual([
+            ['debates.status', 'in', ['RUNNING', 'VOTING']],
+            ['debates.updated_at', '>=', cutoff],
+        ]);
+        expect(captured.groupBy).toEqual([
+            'debates.id',
+            'debates.status',
+            'debates.updated_at',
+        ]);
+        expect(captured.orderBy).toHaveLength(2);
+        expect(captured.orderBy[0]?.[1]).toBe('asc');
+        expect(captured.orderBy[1]).toEqual(['debates.id', 'asc']);
+        expect(captured.limit).toBe(5);
     });
 });

@@ -13,6 +13,8 @@ import type {
     FinalDebateScoreResponse,
     GetAiAnalysisResultRequest,
     GetFinalDebateScoreRequest,
+    GetRandomRecentDebateForVotingRequest,
+    RandomRecentDebateForVotingResponse,
     ScoringServiceClient,
     SpectatorVoteResponse,
 } from '@contracts/scoring';
@@ -62,6 +64,14 @@ function createController(
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
     }),
+    onRandomDebate: (
+        request: GetRandomRecentDebateForVotingRequest,
+    ) => RandomRecentDebateForVotingResponse = () => ({
+        debateId: 'debate-1',
+        status: 'VOTING',
+        voteCount: 2,
+        referenceTime: '2026-01-01T00:15:00.000Z',
+    }),
 ): GatewayController {
     const scoring: Pick<
         ScoringServiceClient,
@@ -69,12 +79,14 @@ function createController(
         | 'getAudienceVoteSummary'
         | 'getAiAnalysisResult'
         | 'getFinalDebateScore'
+        | 'getRandomRecentDebateForVoting'
     > = {
         createSpectatorVote: (request, metadata) =>
             of(onCreate(request, metadata as Metadata)),
         getAudienceVoteSummary: (request) => of(onSummary(request)),
         getAiAnalysisResult: (request) => of(onAiAnalysis(request)),
         getFinalDebateScore: (request) => of(onFinalScore(request)),
+        getRandomRecentDebateForVoting: (request) => of(onRandomDebate(request)),
     };
     const client = {
         getService: () => scoring,
@@ -292,6 +304,138 @@ describe('GatewayController final debate scores', () => {
 
         await assert.rejects(
             () => controller.getFinalDebateScore(''),
+            BadRequestException,
+        );
+    });
+});
+
+describe('GatewayController random recent debates for voting', () => {
+    it('calls scoring without overrides so scoring defaults apply', async () => {
+        let received: GetRandomRecentDebateForVotingRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            undefined,
+            undefined,
+            undefined,
+            (request) => {
+                received = request;
+                return {
+                    debateId: 'debate-1',
+                    status: 'VOTING',
+                    voteCount: 2,
+                    referenceTime: '2026-01-01T00:15:00.000Z',
+                };
+            },
+        );
+
+        const result = await controller.getRandomRecentDebateForVoting();
+
+        assert.deepEqual(received, {
+            maxAgeMinutes: undefined,
+            candidatePoolSize: undefined,
+        });
+        assert.deepEqual(result, {
+            debateId: 'debate-1',
+            status: 'VOTING',
+            voteCount: 2,
+            referenceTime: '2026-01-01T00:15:00.000Z',
+        });
+    });
+
+    it('passes optional query params to scoring as numbers', async () => {
+        let received: GetRandomRecentDebateForVotingRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            undefined,
+            undefined,
+            undefined,
+            (request) => {
+                received = request;
+                return {
+                    debateId: 'debate-1',
+                    status: 'RUNNING',
+                    voteCount: 0,
+                    referenceTime: '2026-01-01T00:15:00.000Z',
+                };
+            },
+        );
+
+        await controller.getRandomRecentDebateForVoting('30', '10');
+
+        assert.deepEqual(received, {
+            maxAgeMinutes: 30,
+            candidatePoolSize: 10,
+        });
+    });
+
+    it('rejects non-integer query params before calling scoring', async () => {
+        let scoringCalled = false;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            undefined,
+            undefined,
+            undefined,
+            () => {
+                scoringCalled = true;
+                return {} as RandomRecentDebateForVotingResponse;
+            },
+        );
+
+        await assert.rejects(
+            () => controller.getRandomRecentDebateForVoting('abc'),
+            BadRequestException,
+        );
+        assert.equal(scoringCalled, false);
+    });
+
+    it('maps scoring random debate NOT_FOUND errors to HTTP 404', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            | 'createSpectatorVote'
+            | 'getAudienceVoteSummary'
+            | 'getAiAnalysisResult'
+            | 'getFinalDebateScore'
+            | 'getRandomRecentDebateForVoting'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () => of({} as AiAnalysisResultResponse),
+            getFinalDebateScore: () => of({} as FinalDebateScoreResponse),
+            getRandomRecentDebateForVoting: () =>
+                throwError(() => ({ code: grpcStatus.NOT_FOUND })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(client);
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getRandomRecentDebateForVoting(),
+            NotFoundException,
+        );
+    });
+
+    it('maps scoring random debate validation errors to HTTP 400', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            | 'createSpectatorVote'
+            | 'getAudienceVoteSummary'
+            | 'getAiAnalysisResult'
+            | 'getFinalDebateScore'
+            | 'getRandomRecentDebateForVoting'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () => of({} as AiAnalysisResultResponse),
+            getFinalDebateScore: () => of({} as FinalDebateScoreResponse),
+            getRandomRecentDebateForVoting: () =>
+                throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(client);
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getRandomRecentDebateForVoting('0'),
             BadRequestException,
         );
     });

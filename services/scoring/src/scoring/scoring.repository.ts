@@ -33,6 +33,19 @@ export type SpectatorVoteCount = {
     votes: number;
 };
 
+export type RecentDebateForVotingCandidate = {
+    debateId: string;
+    status: string;
+    voteCount: number;
+    referenceTime: Date;
+};
+
+export type FindRecentDebatesForVotingRecord = {
+    cutoff: Date;
+    limit: number;
+    statuses: readonly string[];
+};
+
 export type UpsertAiAnalysisResultRecord = {
     debateId: string;
     status: string;
@@ -78,7 +91,10 @@ export class ScoringRepository {
             .insertInto('debates')
             .values({ id: input.debateId, status: input.status })
             .onConflict((oc) =>
-                oc.column('id').doUpdateSet({ status: input.status }),
+                oc.column('id').doUpdateSet({
+                    status: input.status,
+                    updated_at: sql<Date>`now()`,
+                }),
             )
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -127,6 +143,34 @@ export class ScoringRepository {
             .where('debate_id', '=', debateId)
             .groupBy('side')
             .execute();
+    }
+
+    async findRecentDebatesForVoting(
+        input: FindRecentDebatesForVotingRecord,
+    ): Promise<RecentDebateForVotingCandidate[]> {
+        const rows = await this.db
+            .selectFrom('debates')
+            .leftJoin('spectator_votes', 'spectator_votes.debate_id', 'debates.id')
+            .select([
+                'debates.id as debate_id',
+                'debates.status as status',
+                'debates.updated_at as reference_time',
+                sql<number>`count(spectator_votes.id)::int`.as('vote_count'),
+            ])
+            .where('debates.status', 'in', input.statuses)
+            .where('debates.updated_at', '>=', input.cutoff)
+            .groupBy(['debates.id', 'debates.status', 'debates.updated_at'])
+            .orderBy(sql<number>`count(spectator_votes.id)::int`, 'asc')
+            .orderBy('debates.id', 'asc')
+            .limit(input.limit)
+            .execute();
+
+        return rows.map((row) => ({
+            debateId: row.debate_id,
+            status: row.status,
+            voteCount: row.vote_count,
+            referenceTime: row.reference_time,
+        }));
     }
 
     upsertAiAnalysisResult(

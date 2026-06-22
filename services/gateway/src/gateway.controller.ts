@@ -3,6 +3,8 @@ import {
     type AiAnalysisResultResponse,
     type AudienceVoteSummaryResponse,
     type FinalDebateScoreResponse,
+    type GetRandomRecentDebateForVotingRequest,
+    type RandomRecentDebateForVotingResponse,
     type ScoringServiceClient,
     type SpectatorVoteResponse,
 } from '@contracts/scoring';
@@ -20,6 +22,7 @@ import {
     Param,
     Get,
     Post,
+    Query,
     UseGuards,
     Body,
 } from '@nestjs/common';
@@ -111,6 +114,28 @@ export class GatewayController implements OnModuleInit {
         }
     }
 
+    @Get('debates/random-for-voting')
+    async getRandomRecentDebateForVoting(
+        @Query('maxAgeMinutes') maxAgeMinutes?: string,
+        @Query('candidatePoolSize') candidatePoolSize?: string,
+    ): Promise<RandomRecentDebateForVotingResponse> {
+        const request: GetRandomRecentDebateForVotingRequest = {
+            maxAgeMinutes: parseOptionalInteger(maxAgeMinutes, 'maxAgeMinutes'),
+            candidatePoolSize: parseOptionalInteger(
+                candidatePoolSize,
+                'candidatePoolSize',
+            ),
+        };
+
+        try {
+            return await firstValueFrom(
+                this.scoring.getRandomRecentDebateForVoting(request),
+            );
+        } catch (error) {
+            throw this.mapScoringError(error);
+        }
+    }
+
     private mapScoringError(error: unknown): Error {
         const code = (error as GrpcError | null)?.code;
         switch (code) {
@@ -126,4 +151,16 @@ export class GatewayController implements OnModuleInit {
                 return new InternalServerErrorException('scoring service request failed');
         }
     }
+}
+
+function parseOptionalInteger(
+    value: string | undefined,
+    fieldName: string,
+): number | undefined {
+    if (value === undefined) return undefined;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed)) {
+        throw new BadRequestException(`${fieldName} must be an integer`);
+    }
+    return parsed;
 }

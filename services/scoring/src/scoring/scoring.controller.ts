@@ -13,6 +13,9 @@ import {
     getAiAnalysisResultSchema,
     type GetFinalDebateScoreRequest,
     getFinalDebateScoreSchema,
+    type GetRandomRecentDebateForVotingRequest,
+    getRandomRecentDebateForVotingSchema,
+    type RandomRecentDebateForVotingResponse,
     ScoringServiceControllerMethods,
     type StoreAiAnalysisResultRequest,
     storeAiAnalysisResultSchema,
@@ -77,6 +80,13 @@ export class ScoringController implements ScoringServiceController {
         request: GetFinalDebateScoreRequest,
     ): Promise<FinalDebateScoreResponse> {
         return this.scoringService.getFinalDebateScore(request);
+    }
+
+    getRandomRecentDebateForVoting(
+        @Payload(new ZodRpcValidationPipe(getRandomRecentDebateForVotingSchema))
+        request: GetRandomRecentDebateForVotingRequest,
+    ): Promise<RandomRecentDebateForVotingResponse> {
+        return this.scoringService.getRandomRecentDebateForVoting(request);
     }
 
     upsertDebate(
