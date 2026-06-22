@@ -12,6 +12,7 @@ import type {
 } from '@contracts/scoring';
 import type { AuthenticatedUser } from './auth/authenticated-user';
 import { GatewayController } from './gateway.controller';
+import type { RealtimeService } from './realtime/realtime.service';
 import type { CreateSpectatorVoteDto } from './votes/create-spectator-vote.dto';
 
 function createController(
@@ -19,6 +20,9 @@ function createController(
         request: CreateSpectatorVoteRequest,
         metadata: Metadata,
     ) => SpectatorVoteResponse,
+    realtime: Pick<RealtimeService, 'publishVoteCreated'> = {
+        publishVoteCreated: () => undefined as never,
+    },
 ): GatewayController {
     const scoring: Pick<ScoringServiceClient, 'createSpectatorVote'> = {
         createSpectatorVote: (request, metadata) =>
@@ -27,7 +31,7 @@ function createController(
     const client = {
         getService: () => scoring,
     } as unknown as ClientGrpc;
-    const controller = new GatewayController(client);
+    const controller = new GatewayController(client, realtime as RealtimeService);
     controller.onModuleInit();
     return controller;
 }
@@ -53,19 +57,28 @@ describe('GatewayController spectator votes', () => {
     it('takes debateId from the URL and forwards the user as gRPC metadata', async () => {
         let received: CreateSpectatorVoteRequest | undefined;
         let principal: ReturnType<typeof readUserMetadata> = null;
+        let published: SpectatorVoteResponse | undefined;
         const user: AuthenticatedUser = { id: 'header-user', role: 'user' };
         const body = { side: 'FOR' } as CreateSpectatorVoteDto;
-        const controller = createController((request, metadata) => {
-            received = request;
-            principal = readUserMetadata(metadata);
-            return {
-                id: 'vote-1',
-                debateId: 'url-debate',
-                userId: 'header-user',
-                side: 'FOR',
-                createdAt: new Date().toISOString(),
-            };
-        });
+        const controller = createController(
+            (request, metadata) => {
+                received = request;
+                principal = readUserMetadata(metadata);
+                return {
+                    id: 'vote-1',
+                    debateId: 'url-debate',
+                    userId: 'header-user',
+                    side: 'FOR',
+                    createdAt: new Date().toISOString(),
+                };
+            },
+            {
+                publishVoteCreated: (vote) => {
+                    published = vote;
+                    return undefined as never;
+                },
+            },
+        );
 
         const result = await controller.createSpectatorVote('url-debate', body, user);
 
@@ -73,5 +86,6 @@ describe('GatewayController spectator votes', () => {
         assert.deepEqual(received, { debateId: 'url-debate', side: 'FOR' });
         assert.deepEqual(principal, { id: 'header-user', role: 'user' });
         assert.equal(result.id, 'vote-1');
+        assert.equal(published, result);
     });
 });

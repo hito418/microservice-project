@@ -25,6 +25,7 @@ import { firstValueFrom } from 'rxjs';
 import type { AuthenticatedUser } from './auth/authenticated-user';
 import { AuthUserGuard } from './auth/auth-user.guard';
 import { CurrentUser } from './auth/current-user.decorator';
+import { RealtimeService } from './realtime/realtime.service';
 import { CreateSpectatorVoteDto } from './votes/create-spectator-vote.dto';
 
 interface GrpcError {
@@ -37,6 +38,7 @@ export class GatewayController implements OnModuleInit {
 
     constructor(
         @Inject('SCORING_CLIENT') private readonly scoringClient: ClientGrpc,
+        private readonly realtime: RealtimeService,
     ) {}
 
     onModuleInit(): void {
@@ -57,12 +59,14 @@ export class GatewayController implements OnModuleInit {
         }
 
         try {
-            return await firstValueFrom(
+            const vote = await firstValueFrom(
                 this.scoring.createSpectatorVote(
                     { debateId, side: body.side ?? '' },
                     attachUserMetadata(user),
                 ),
             );
+            this.realtime.publishVoteCreated(vote);
+            return vote;
         } catch (error) {
             throw this.mapScoringError(error);
         }
