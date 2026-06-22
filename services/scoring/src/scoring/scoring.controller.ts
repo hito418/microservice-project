@@ -1,4 +1,7 @@
 import {
+    type AudienceVoteSummaryRequest,
+    type AudienceVoteSummaryResponse,
+    audienceVoteSummarySchema,
     type CreateSpectatorVoteRequest,
     createSpectatorVoteSchema,
     type DebateResponse,
@@ -29,6 +32,13 @@ export class ScoringController implements ScoringServiceController {
         @GrpcUser() user: GrpcPrincipal,
     ): Promise<SpectatorVoteResponse> {
         return this.spectatorVotes.createVote(request, user.id);
+    }
+
+    getAudienceVoteSummary(
+        @Payload(new ZodRpcValidationPipe(audienceVoteSummarySchema))
+        request: AudienceVoteSummaryRequest,
+    ): Promise<AudienceVoteSummaryResponse> {
+        return this.spectatorVotes.getSummary(request);
     }
 
     upsertDebate(

@@ -25,6 +25,19 @@ export interface SpectatorVoteResponse {
   createdAt: string;
 }
 
+export interface AudienceVoteSummaryRequest {
+  debateId: string;
+}
+
+export interface AudienceVoteSummaryResponse {
+  debateId: string;
+  totalVotes: number;
+  forVotes: number;
+  againstVotes: number;
+  forScore: number;
+  againstScore: number;
+}
+
 export interface UpsertDebateRequest {
   debateId: string;
   /** One of: PENDING, RUNNING, VOTING, CLOSED */
@@ -41,6 +54,8 @@ export const SCORING_V1_PACKAGE_NAME = "scoring.v1";
 export interface ScoringServiceClient {
   createSpectatorVote(request: CreateSpectatorVoteRequest, ...rest: any): Observable<SpectatorVoteResponse>;
 
+  getAudienceVoteSummary(request: AudienceVoteSummaryRequest, ...rest: any): Observable<AudienceVoteSummaryResponse>;
+
   upsertDebate(request: UpsertDebateRequest, ...rest: any): Observable<DebateResponse>;
 }
 
@@ -50,6 +65,11 @@ export interface ScoringServiceController {
     ...rest: any
   ): Promise<SpectatorVoteResponse> | Observable<SpectatorVoteResponse> | SpectatorVoteResponse;
 
+  getAudienceVoteSummary(
+    request: AudienceVoteSummaryRequest,
+    ...rest: any
+  ): Promise<AudienceVoteSummaryResponse> | Observable<AudienceVoteSummaryResponse> | AudienceVoteSummaryResponse;
+
   upsertDebate(
     request: UpsertDebateRequest,
     ...rest: any
@@ -58,7 +78,7 @@ export interface ScoringServiceController {
 
 export function ScoringServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createSpectatorVote", "upsertDebate"];
+    const grpcMethods: string[] = ["createSpectatorVote", "getAudienceVoteSummary", "upsertDebate"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("ScoringService", method)(constructor.prototype[method], method, descriptor);
