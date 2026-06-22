@@ -20,26 +20,49 @@ import type {
 } from '@contracts/scoring';
 import type { AuthenticatedUser } from './auth/authenticated-user';
 import { GatewayController } from './gateway.controller';
+import type { RealtimeService } from './realtime/realtime.service';
 import type { CreateSpectatorVoteDto } from './votes/create-spectator-vote.dto';
+
+type RealtimeStub = Pick<RealtimeService, 'publishVoteCreated'>;
+
+interface CreateControllerOptions {
+    onSummary?: (
+        request: AudienceVoteSummaryRequest,
+    ) => AudienceVoteSummaryResponse;
+    onAiAnalysis?: (
+        request: GetAiAnalysisResultRequest,
+    ) => AiAnalysisResultResponse;
+    onFinalScore?: (
+        request: GetFinalDebateScoreRequest,
+    ) => FinalDebateScoreResponse;
+    onRandomDebate?: (
+        request: GetRandomRecentDebateForVotingRequest,
+    ) => RandomRecentDebateForVotingResponse;
+    realtime?: RealtimeStub;
+}
+
+function createRealtimeStub(
+    onPublish: RealtimeStub['publishVoteCreated'] = () => undefined as never,
+): RealtimeStub {
+    return { publishVoteCreated: onPublish };
+}
 
 function createController(
     onCreate: (
         request: CreateSpectatorVoteRequest,
         metadata: Metadata,
     ) => SpectatorVoteResponse,
-    onSummary: (
-        request: AudienceVoteSummaryRequest,
-    ) => AudienceVoteSummaryResponse = () => ({
+    options: CreateControllerOptions = {},
+): GatewayController {
+    const onSummary = options.onSummary ?? (() => ({
         debateId: 'debate-1',
         totalVotes: 0,
         forVotes: 0,
         againstVotes: 0,
         forScore: 0,
         againstScore: 0,
-    }),
-    onAiAnalysis: (
-        request: GetAiAnalysisResultRequest,
-    ) => AiAnalysisResultResponse = () => ({
+    }));
+    const onAiAnalysis = options.onAiAnalysis ?? (() => ({
         debateId: 'debate-1',
         status: 'COMPLETED',
         summary: 'FOR had stronger evidence.',
@@ -49,10 +72,8 @@ function createController(
         againstFeedback: 'Needs more evidence.',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
-    }),
-    onFinalScore: (
-        request: GetFinalDebateScoreRequest,
-    ) => FinalDebateScoreResponse = () => ({
+    }));
+    const onFinalScore = options.onFinalScore ?? (() => ({
         debateId: 'debate-1',
         aiForScore: 80,
         aiAgainstScore: 20,
@@ -63,16 +84,14 @@ function createController(
         winnerSide: 'FOR',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
-    }),
-    onRandomDebate: (
-        request: GetRandomRecentDebateForVotingRequest,
-    ) => RandomRecentDebateForVotingResponse = () => ({
+    }));
+    const onRandomDebate = options.onRandomDebate ?? (() => ({
         debateId: 'debate-1',
         status: 'VOTING',
         voteCount: 2,
         referenceTime: '2026-01-01T00:15:00.000Z',
-    }),
-): GatewayController {
+    }));
+    const realtime = options.realtime ?? createRealtimeStub();
     const scoring: Pick<
         ScoringServiceClient,
         | 'createSpectatorVote'
@@ -91,7 +110,10 @@ function createController(
     const client = {
         getService: () => scoring,
     } as unknown as ClientGrpc;
-    const controller = new GatewayController(client);
+    const controller = new GatewayController(
+        client,
+        realtime as RealtimeService,
+    );
     controller.onModuleInit();
     return controller;
 }
@@ -117,19 +139,28 @@ describe('GatewayController spectator votes', () => {
     it('takes debateId from the URL and forwards the user as gRPC metadata', async () => {
         let received: CreateSpectatorVoteRequest | undefined;
         let principal: ReturnType<typeof readUserMetadata> = null;
+        let published: SpectatorVoteResponse | undefined;
         const user: AuthenticatedUser = { id: 'header-user', role: 'user' };
         const body = { side: 'FOR' } as CreateSpectatorVoteDto;
-        const controller = createController((request, metadata) => {
-            received = request;
-            principal = readUserMetadata(metadata);
-            return {
-                id: 'vote-1',
-                debateId: 'url-debate',
-                userId: 'header-user',
-                side: 'FOR',
-                createdAt: new Date().toISOString(),
-            };
-        });
+        const controller = createController(
+            (request, metadata) => {
+                received = request;
+                principal = readUserMetadata(metadata);
+                return {
+                    id: 'vote-1',
+                    debateId: 'url-debate',
+                    userId: 'header-user',
+                    side: 'FOR',
+                    createdAt: new Date().toISOString(),
+                };
+            },
+            {
+                realtime: createRealtimeStub((vote) => {
+                    published = vote;
+                    return undefined as never;
+                }),
+            },
+        );
 
         const result = await controller.createSpectatorVote('url-debate', body, user);
 
@@ -137,6 +168,7 @@ describe('GatewayController spectator votes', () => {
         assert.deepEqual(received, { debateId: 'url-debate', side: 'FOR' });
         assert.deepEqual(principal, { id: 'header-user', role: 'user' });
         assert.equal(result.id, 'vote-1');
+        assert.equal(published, result);
     });
 });
 
@@ -145,20 +177,21 @@ describe('GatewayController AI analysis results', () => {
         let received: GetAiAnalysisResultRequest | undefined;
         const controller = createController(
             () => ({} as SpectatorVoteResponse),
-            undefined,
-            (request) => {
-                received = request;
-                return {
-                    debateId: 'url-debate',
-                    status: 'COMPLETED',
-                    summary: 'FOR had stronger evidence.',
-                    forScore: 72,
-                    againstScore: 28,
-                    forFeedback: 'Clear argumentation.',
-                    againstFeedback: 'Needs more evidence.',
-                    createdAt: '2026-01-01T00:00:00.000Z',
-                    updatedAt: '2026-01-01T00:00:00.000Z',
-                };
+            {
+                onAiAnalysis: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'url-debate',
+                        status: 'COMPLETED',
+                        summary: 'FOR had stronger evidence.',
+                        forScore: 72,
+                        againstScore: 28,
+                        forFeedback: 'Clear argumentation.',
+                        againstFeedback: 'Needs more evidence.',
+                        createdAt: '2026-01-01T00:00:00.000Z',
+                        updatedAt: '2026-01-01T00:00:00.000Z',
+                    };
+                },
             },
         );
 
@@ -189,7 +222,10 @@ describe('GatewayController AI analysis results', () => {
                 throwError(() => ({ code: grpcStatus.NOT_FOUND })),
         };
         const client = { getService: () => scoring } as unknown as ClientGrpc;
-        const controller = new GatewayController(client);
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
         controller.onModuleInit();
 
         await assert.rejects(
@@ -209,7 +245,10 @@ describe('GatewayController AI analysis results', () => {
                 throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
         };
         const client = { getService: () => scoring } as unknown as ClientGrpc;
-        const controller = new GatewayController(client);
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
         controller.onModuleInit();
 
         await assert.rejects(
@@ -224,22 +263,22 @@ describe('GatewayController final debate scores', () => {
         let received: GetFinalDebateScoreRequest | undefined;
         const controller = createController(
             () => ({} as SpectatorVoteResponse),
-            undefined,
-            undefined,
-            (request) => {
-                received = request;
-                return {
-                    debateId: 'url-debate',
-                    aiForScore: 80,
-                    aiAgainstScore: 20,
-                    audienceForScore: 60,
-                    audienceAgainstScore: 40,
-                    finalForScore: 70,
-                    finalAgainstScore: 30,
-                    winnerSide: 'FOR',
-                    createdAt: '2026-01-01T00:00:00.000Z',
-                    updatedAt: '2026-01-01T00:00:00.000Z',
-                };
+            {
+                onFinalScore: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'url-debate',
+                        aiForScore: 80,
+                        aiAgainstScore: 20,
+                        audienceForScore: 60,
+                        audienceAgainstScore: 40,
+                        finalForScore: 70,
+                        finalAgainstScore: 30,
+                        winnerSide: 'FOR',
+                        createdAt: '2026-01-01T00:00:00.000Z',
+                        updatedAt: '2026-01-01T00:00:00.000Z',
+                    };
+                },
             },
         );
 
@@ -275,7 +314,10 @@ describe('GatewayController final debate scores', () => {
                 throwError(() => ({ code: grpcStatus.NOT_FOUND })),
         };
         const client = { getService: () => scoring } as unknown as ClientGrpc;
-        const controller = new GatewayController(client);
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
         controller.onModuleInit();
 
         await assert.rejects(
@@ -299,7 +341,10 @@ describe('GatewayController final debate scores', () => {
                 throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
         };
         const client = { getService: () => scoring } as unknown as ClientGrpc;
-        const controller = new GatewayController(client);
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
         controller.onModuleInit();
 
         await assert.rejects(
@@ -314,17 +359,16 @@ describe('GatewayController random recent debates for voting', () => {
         let received: GetRandomRecentDebateForVotingRequest | undefined;
         const controller = createController(
             () => ({} as SpectatorVoteResponse),
-            undefined,
-            undefined,
-            undefined,
-            (request) => {
-                received = request;
-                return {
-                    debateId: 'debate-1',
-                    status: 'VOTING',
-                    voteCount: 2,
-                    referenceTime: '2026-01-01T00:15:00.000Z',
-                };
+            {
+                onRandomDebate: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'debate-1',
+                        status: 'VOTING',
+                        voteCount: 2,
+                        referenceTime: '2026-01-01T00:15:00.000Z',
+                    };
+                },
             },
         );
 
@@ -346,17 +390,16 @@ describe('GatewayController random recent debates for voting', () => {
         let received: GetRandomRecentDebateForVotingRequest | undefined;
         const controller = createController(
             () => ({} as SpectatorVoteResponse),
-            undefined,
-            undefined,
-            undefined,
-            (request) => {
-                received = request;
-                return {
-                    debateId: 'debate-1',
-                    status: 'RUNNING',
-                    voteCount: 0,
-                    referenceTime: '2026-01-01T00:15:00.000Z',
-                };
+            {
+                onRandomDebate: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'debate-1',
+                        status: 'RUNNING',
+                        voteCount: 0,
+                        referenceTime: '2026-01-01T00:15:00.000Z',
+                    };
+                },
             },
         );
 
@@ -372,12 +415,11 @@ describe('GatewayController random recent debates for voting', () => {
         let scoringCalled = false;
         const controller = createController(
             () => ({} as SpectatorVoteResponse),
-            undefined,
-            undefined,
-            undefined,
-            () => {
-                scoringCalled = true;
-                return {} as RandomRecentDebateForVotingResponse;
+            {
+                onRandomDebate: () => {
+                    scoringCalled = true;
+                    return {} as RandomRecentDebateForVotingResponse;
+                },
             },
         );
 
@@ -405,7 +447,10 @@ describe('GatewayController random recent debates for voting', () => {
                 throwError(() => ({ code: grpcStatus.NOT_FOUND })),
         };
         const client = { getService: () => scoring } as unknown as ClientGrpc;
-        const controller = new GatewayController(client);
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
         controller.onModuleInit();
 
         await assert.rejects(
@@ -431,7 +476,10 @@ describe('GatewayController random recent debates for voting', () => {
                 throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
         };
         const client = { getService: () => scoring } as unknown as ClientGrpc;
-        const controller = new GatewayController(client);
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
         controller.onModuleInit();
 
         await assert.rejects(
@@ -446,16 +494,18 @@ describe('GatewayController audience vote summaries', () => {
         let received: AudienceVoteSummaryRequest | undefined;
         const controller = createController(
             () => ({} as SpectatorVoteResponse),
-            (request) => {
-                received = request;
-                return {
-                    debateId: 'url-debate',
-                    totalVotes: 3,
-                    forVotes: 2,
-                    againstVotes: 1,
-                    forScore: 67,
-                    againstScore: 33,
-                };
+            {
+                onSummary: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'url-debate',
+                        totalVotes: 3,
+                        forVotes: 2,
+                        againstVotes: 1,
+                        forScore: 67,
+                        againstScore: 33,
+                    };
+                },
             },
         );
 
@@ -482,7 +532,10 @@ describe('GatewayController audience vote summaries', () => {
                 throwError(() => ({ code: grpcStatus.NOT_FOUND })),
         };
         const client = { getService: () => scoring } as unknown as ClientGrpc;
-        const controller = new GatewayController(client);
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
         controller.onModuleInit();
 
         await assert.rejects(
@@ -501,7 +554,10 @@ describe('GatewayController audience vote summaries', () => {
                 throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
         };
         const client = { getService: () => scoring } as unknown as ClientGrpc;
-        const controller = new GatewayController(client);
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
         controller.onModuleInit();
 
         await assert.rejects(

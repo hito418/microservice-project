@@ -62,7 +62,9 @@ export interface AiAnalysisResultResponse {
   againstScore?: number | undefined;
   forFeedback?: string | undefined;
   againstFeedback?: string | undefined;
-  errorMessage?: string | undefined;
+  errorMessage?:
+    | string
+    | undefined;
   /** RFC 3339 / ISO 8601 */
   createdAt: string;
   /** RFC 3339 / ISO 8601 */
@@ -132,10 +134,7 @@ export interface ScoringServiceClient {
 
   getAiAnalysisResult(request: GetAiAnalysisResultRequest, ...rest: any): Observable<AiAnalysisResultResponse>;
 
-  computeFinalDebateScore(
-    request: ComputeFinalDebateScoreRequest,
-    ...rest: any
-  ): Observable<FinalDebateScoreResponse>;
+  computeFinalDebateScore(request: ComputeFinalDebateScoreRequest, ...rest: any): Observable<FinalDebateScoreResponse>;
 
   getFinalDebateScore(request: GetFinalDebateScoreRequest, ...rest: any): Observable<FinalDebateScoreResponse>;
 

@@ -109,6 +109,18 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
+  contracts/realtime:
+    devDependencies:
+      '@repo/ts-config':
+        specifier: workspace:*
+        version: link:../../toolings/ts-config
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
   contracts/scoring:
     dependencies:
       zod:
@@ -279,6 +291,9 @@ importers:
       '@contracts/auth':
         specifier: workspace:*
         version: link:../../contracts/auth
+      '@contracts/realtime':
+        specifier: workspace:*
+        version: link:../../contracts/realtime
       '@contracts/scoring':
         specifier: workspace:*
         version: link:../../contracts/scoring

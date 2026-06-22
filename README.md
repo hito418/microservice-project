@@ -44,6 +44,67 @@ Supported algorithms: `ES256` (default), `ES384`, `RS256`, `RS384`.
 
 `.secrets/` is gitignored. **Do not use a dev keypair in production** — mint keys in your secrets manager and inject them via env or mounted volumes.
 
+## Realtime gateway streams
+
+The gateway exposes authenticated Server-Sent Events streams for server-to-client realtime updates. The same `auth_token` HttpOnly cookie used by the HTTP gateway protects these routes:
+
+- `GET /rooms/:roomId/realtime` - room lifecycle, topic, side assignment, prep/debate, message, result and room-scoped leaderboard events.
+- `GET /debates/:debateId/realtime` - debate-scoped events such as spectator votes and results.
+- `GET /users/me/realtime` - events addressed to the authenticated user.
+- `GET /leaderboard/realtime` - global leaderboard updates.
+
+Every SSE message uses the event name as the SSE `event` type and sends a JSON payload with this envelope:
+
+```json
+{
+  "type": "room.ready",
+  "roomId": "room-123",
+  "payload": {
+    "roomId": "room-123",
+    "debateId": "debate-123"
+  },
+  "occurredAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+`roomId` and `userId` are included when that context is known. Debate-specific events also carry `debateId` inside `payload`.
+
+Supported business event types:
+
+- `room.ready`
+- `topic.revealed`
+- `sides.assigned`
+- `prep.started`
+- `debate.started`
+- `message.created`
+- `vote.created`
+- `vote.updated`
+- `result.published`
+- `leaderboard.updated`
+
+The stream also emits `realtime.connected` when the connection opens and `realtime.ping` heartbeats about every 30 seconds. Today, `vote.created` is wired from `POST /debates/:debateId/votes`; the other publish hooks are scaffolded in the gateway realtime service and should be called by the future room/topic/message/result services when those modules land.
+
+Minimal browser client:
+
+```js
+const stream = new EventSource('/rooms/room-123/realtime', {
+  withCredentials: true,
+});
+
+stream.addEventListener('room.ready', (event) => {
+  console.log(JSON.parse(event.data));
+});
+
+stream.addEventListener('vote.created', (event) => {
+  const realtimeEvent = JSON.parse(event.data);
+  console.log(realtimeEvent.payload);
+});
+
+stream.addEventListener('realtime.ping', () => {
+  // Keepalive from the gateway.
+});
+```
+
 ## Layout
 
 ```
