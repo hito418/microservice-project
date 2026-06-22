@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
+import { DebateModule } from '../debate/debate.module';
 import { MatchmakingController } from './matchmaking.controller';
 import { MatchmakingRepository } from './matchmaking.repository';
 import { MatchmakingService } from './matchmaking.service';
 import { RedisModule } from './redis.module';
 
 @Module({
-    imports: [RedisModule],
+    imports: [RedisModule, DebateModule],
     controllers: [MatchmakingController],
     providers: [MatchmakingService, MatchmakingRepository],
 })
