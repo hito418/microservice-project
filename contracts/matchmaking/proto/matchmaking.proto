@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package matchmaking.v1;
+
+service MatchmakingService {
+  // Player enters the matchmaking queue. User identity from gRPC metadata.
+  rpc LaunchDebate(LaunchDebateRequest) returns (MatchResponse);
+
+  // Poll current match status. User identity from gRPC metadata.
+  rpc GetMatchStatus(GetMatchStatusRequest) returns (MatchResponse);
+
+  // Leave the matchmaking queue. User identity from gRPC metadata.
+  rpc CancelMatchmaking(CancelMatchmakingRequest) returns (CancelMatchmakingResponse);
+}
+
+message LaunchDebateRequest {}
+
+message GetMatchStatusRequest {}
+
+message CancelMatchmakingRequest {}
+
+message MatchResponse {
+  string user_id = 1;
+  // One of: WAITING | MATCHED | CANCELLED | NOT_IN_QUEUE
+  string status = 2;
+  // Populated when status is MATCHED
+  string debate_room_id = 3;
+  string debate_id = 4;
+  // Unix epoch in milliseconds
+  int64 queued_at = 5;
+}
+
+message CancelMatchmakingResponse {
+  bool cancelled = 1;
+}

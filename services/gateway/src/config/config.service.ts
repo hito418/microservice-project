@@ -34,6 +34,13 @@ export class ConfigService {
         return parsePort('AUTH_GRPC_PORT', 50051);
     }
 
+    get matchmakingGrpcHost(): string {
+        return process.env.MATCHMAKING_GRPC_HOST ?? '127.0.0.1';
+    }
+    get matchmakingGrpcPort(): number {
+        return parsePort('MATCHMAKING_GRPC_PORT', 50054);
+    }
+
     get authCookieName(): string {
         return process.env.AUTH_COOKIE_NAME?.trim() || AUTH_COOKIE_DEFAULT_NAME;
     }

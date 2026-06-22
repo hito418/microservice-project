@@ -10,6 +10,8 @@ services:
             - SCORING_GRPC_PORT=50052
             - AUTH_GRPC_HOST=auth
             - AUTH_GRPC_PORT=50051
+            - MATCHMAKING_GRPC_HOST=matchmaking
+            - MATCHMAKING_GRPC_PORT=50054
             - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
             - JWT_PUBLIC_KEY_PATH=/app/.secrets/public.pem
             - JWT_ALGORITHM=${JWT_ALGORITHM:-ES256}
@@ -110,6 +112,23 @@ services:
             interval: 5s
             timeout: 3s
             retries: 5
+    matchmaking:
+        build:
+            context: .
+            dockerfile: services/matchmaking/Dockerfile
+        environment:
+            - MATCHMAKING_GRPC_HOST=0.0.0.0
+            - MATCHMAKING_GRPC_PORT=50054
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        networks:
+            - matchmaking-service
+            - gateway
+        depends_on:
+            redis:
+                condition: service_healthy
+        ports:
+            - 127.0.0.1:50054:50054
     redis:
         image: redis:7-alpine
         command: ["redis-server", "--appendonly", "yes"]
@@ -131,4 +150,5 @@ volumes:
 networks:
     auth-service:
     scoring-service:
+    matchmaking-service:
     gateway:

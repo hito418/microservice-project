@@ -1,0 +1,22 @@
+{
+    "name": "@contracts/matchmaking",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist",
+        "proto"
+    ],
+    "scripts": {
+        "build": "tsc -b"
+    },
+    "dependencies": {
+        "rxjs": "catalog:"
+    },
+    "devDependencies": {
+        "@repo/ts-config": "workspace:*",
+        "@types/node": "^22.0.0",
+        "typescript": "catalog:"
+    }
+}

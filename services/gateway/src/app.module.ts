@@ -3,6 +3,10 @@ import {
     AUTH_V1_PACKAGE_NAME,
 } from "@contracts/auth";
 import {
+    MATCHMAKING_PROTO_PATH,
+    MATCHMAKING_V1_PACKAGE_NAME,
+} from "@contracts/matchmaking";
+import {
     SCORING_PROTO_PATH,
     SCORING_V1_PACKAGE_NAME,
 } from "@contracts/scoring";
@@ -14,6 +18,7 @@ import { AuthUserGuard } from "./auth/auth-user.guard";
 import { ConfigModule } from "./config/config.module";
 import { ConfigService } from "./config/config.service";
 import { GatewayController } from "./gateway.controller";
+import { MatchmakingController } from "./matchmaking/matchmaking.controller";
 
 @Module({
     imports: [
@@ -46,9 +51,22 @@ import { GatewayController } from "./gateway.controller";
                     },
                 }),
             },
+            {
+                name: "MATCHMAKING_CLIENT",
+                imports: [ConfigModule],
+                inject: [ConfigService],
+                useFactory: (config: ConfigService) => ({
+                    transport: Transport.GRPC,
+                    options: {
+                        package: MATCHMAKING_V1_PACKAGE_NAME,
+                        protoPath: MATCHMAKING_PROTO_PATH,
+                        url: `${config.matchmakingGrpcHost}:${config.matchmakingGrpcPort}`,
+                    },
+                }),
+            },
         ]),
     ],
-    controllers: [AuthController, GatewayController],
+    controllers: [AuthController, GatewayController, MatchmakingController],
     providers: [AuthUserGuard],
 })
 export class AppModule {}
