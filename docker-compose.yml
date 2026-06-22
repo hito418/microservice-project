@@ -39,7 +39,12 @@ services:
             scoring-db:
                 condition: service_healthy
         ports:
-            - 50052:50052
+            # Bind to localhost only: scoring trusts gateway-supplied identity
+            # metadata (x-user-id/x-user-role), so the gRPC port must not be
+            # reachable by arbitrary clients that could bypass the gateway and
+            # spoof a principal. Host loopback stays open for local debugging;
+            # in-cluster traffic uses scoring:50052 over the gateway network.
+            - 127.0.0.1:50052:50052
     scoring-db:
         image: postgres:16-alpine
         environment:
