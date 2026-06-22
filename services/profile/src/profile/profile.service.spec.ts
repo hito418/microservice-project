@@ -1,7 +1,7 @@
 import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProfileRow } from '../db/database.types';
+import type { PlayerStatsRow, ProfileRow } from '../db/database.types';
 import { ProfileAlreadyExistsError, ProfileRepository } from './profile.repository';
 import { ProfileService } from './profile.service';
 
@@ -13,6 +13,9 @@ function makeRepoMock(): ProfileRepository {
         insert: vi.fn(),
         update: vi.fn(),
         deleteByUserId: vi.fn(),
+        findStatsByUserId: vi.fn(),
+        upsertStats: vi.fn(),
+        applyStatsDelta: vi.fn(),
     } as unknown as ProfileRepository;
 }
 
@@ -21,6 +24,21 @@ function profileRow(overrides: Partial<ProfileRow> = {}): ProfileRow {
         user_id: USER_ID,
         display_name: 'Ada',
         avatar_url: null,
+        created_at: new Date('2026-01-01T00:00:00Z'),
+        updated_at: new Date('2026-01-01T00:00:00Z'),
+        ...overrides,
+    };
+}
+
+function playerStatsRow(overrides: Partial<PlayerStatsRow> = {}): PlayerStatsRow {
+    return {
+        user_id: USER_ID,
+        xp: 0,
+        elo: 1000,
+        debates_count: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
         created_at: new Date('2026-01-01T00:00:00Z'),
         updated_at: new Date('2026-01-01T00:00:00Z'),
         ...overrides,
@@ -156,6 +174,266 @@ describe('ProfileService', () => {
             const error = await rpcErrorOf(() => service.deleteProfile(USER_ID));
 
             expect(error.code).toBe(status.NOT_FOUND);
+        });
+    });
+
+    describe('getPlayerStats', () => {
+        it('returns stats with computed winrate', async () => {
+            vi.mocked(repo.findStatsByUserId).mockResolvedValue(
+                playerStatsRow({
+                    xp: 250,
+                    elo: 1040,
+                    debates_count: 3,
+                    wins: 2,
+                    losses: 1,
+                }),
+            );
+
+            const result = await service.getPlayerStats({ userId: USER_ID });
+
+            expect(repo.findStatsByUserId).toHaveBeenCalledWith(USER_ID);
+            expect(result).toEqual({
+                userId: USER_ID,
+                xp: 250,
+                elo: 1040,
+                debatesCount: 3,
+                wins: 2,
+                losses: 1,
+                draws: 0,
+                winrate: 67,
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+            });
+        });
+
+        it('returns winrate 0 when debatesCount is 0', async () => {
+            vi.mocked(repo.findStatsByUserId).mockResolvedValue(playerStatsRow());
+
+            const result = await service.getPlayerStats({ userId: USER_ID });
+
+            expect(result.winrate).toBe(0);
+        });
+
+        it('throws NOT_FOUND when stats do not exist', async () => {
+            vi.mocked(repo.findStatsByUserId).mockResolvedValue(undefined);
+
+            const error = await rpcErrorOf(() =>
+                service.getPlayerStats({ userId: USER_ID }),
+            );
+
+            expect(error.code).toBe(status.NOT_FOUND);
+        });
+    });
+
+    describe('upsertPlayerStats', () => {
+        it('creates or updates stats and computes winrate', async () => {
+            vi.mocked(repo.upsertStats).mockResolvedValue(
+                playerStatsRow({
+                    xp: 500,
+                    elo: 1100,
+                    debates_count: 4,
+                    wins: 3,
+                    losses: 1,
+                }),
+            );
+
+            const result = await service.upsertPlayerStats({
+                userId: USER_ID,
+                xp: 500,
+                elo: 1100,
+                debatesCount: 4,
+                wins: 3,
+                losses: 1,
+                draws: 0,
+            });
+
+            expect(repo.upsertStats).toHaveBeenCalledWith({
+                userId: USER_ID,
+                xp: 500,
+                elo: 1100,
+                debatesCount: 4,
+                wins: 3,
+                losses: 1,
+                draws: 0,
+            });
+            expect(result.winrate).toBe(75);
+        });
+
+        it('rejects mismatched debatesCount', async () => {
+            const error = await rpcErrorOf(() =>
+                service.upsertPlayerStats({
+                    userId: USER_ID,
+                    xp: 0,
+                    elo: 1000,
+                    debatesCount: 3,
+                    wins: 1,
+                    losses: 1,
+                    draws: 0,
+                }),
+            );
+
+            expect(error.code).toBe(status.INVALID_ARGUMENT);
+            expect(repo.upsertStats).not.toHaveBeenCalled();
+        });
+
+        it('rejects negative values', async () => {
+            const error = await rpcErrorOf(() =>
+                service.upsertPlayerStats({
+                    userId: USER_ID,
+                    xp: -1,
+                    elo: 1000,
+                    debatesCount: 0,
+                    wins: 0,
+                    losses: 0,
+                    draws: 0,
+                }),
+            );
+
+            expect(error.code).toBe(status.INVALID_ARGUMENT);
+        });
+    });
+
+    describe('applyPlayerStatsDelta', () => {
+        it('creates stats if missing and applies a WIN delta', async () => {
+            vi.mocked(repo.findStatsByUserId).mockResolvedValue(undefined);
+            vi.mocked(repo.applyStatsDelta).mockResolvedValue(
+                playerStatsRow({
+                    xp: 40,
+                    elo: 1015,
+                    debates_count: 1,
+                    wins: 1,
+                }),
+            );
+
+            const result = await service.applyPlayerStatsDelta({
+                userId: USER_ID,
+                xpDelta: 40,
+                eloDelta: 15,
+                result: 'WIN',
+            });
+
+            expect(repo.applyStatsDelta).toHaveBeenCalledWith({
+                userId: USER_ID,
+                xpDelta: 40,
+                eloDelta: 15,
+                result: 'WIN',
+            });
+            expect(result).toMatchObject({
+                xp: 40,
+                elo: 1015,
+                debatesCount: 1,
+                wins: 1,
+                losses: 0,
+                draws: 0,
+                winrate: 100,
+            });
+        });
+
+        it('applies a LOSS delta', async () => {
+            vi.mocked(repo.findStatsByUserId).mockResolvedValue(playerStatsRow());
+            vi.mocked(repo.applyStatsDelta).mockResolvedValue(
+                playerStatsRow({
+                    xp: 10,
+                    elo: 990,
+                    debates_count: 1,
+                    losses: 1,
+                }),
+            );
+
+            const result = await service.applyPlayerStatsDelta({
+                userId: USER_ID,
+                xpDelta: 10,
+                eloDelta: -10,
+                result: 'LOSS',
+            });
+
+            expect(result.losses).toBe(1);
+            expect(result.winrate).toBe(0);
+        });
+
+        it('applies a DRAW delta', async () => {
+            vi.mocked(repo.findStatsByUserId).mockResolvedValue(playerStatsRow());
+            vi.mocked(repo.applyStatsDelta).mockResolvedValue(
+                playerStatsRow({
+                    xp: 15,
+                    elo: 1000,
+                    debates_count: 1,
+                    draws: 1,
+                }),
+            );
+
+            const result = await service.applyPlayerStatsDelta({
+                userId: USER_ID,
+                xpDelta: 15,
+                eloDelta: 0,
+                result: 'DRAW',
+            });
+
+            expect(result.draws).toBe(1);
+        });
+
+        it('allows negative eloDelta when final elo remains non-negative', async () => {
+            vi.mocked(repo.findStatsByUserId).mockResolvedValue(
+                playerStatsRow({ elo: 20 }),
+            );
+            vi.mocked(repo.applyStatsDelta).mockResolvedValue(
+                playerStatsRow({ elo: 5, debates_count: 1, losses: 1 }),
+            );
+
+            const result = await service.applyPlayerStatsDelta({
+                userId: USER_ID,
+                xpDelta: 0,
+                eloDelta: -15,
+                result: 'LOSS',
+            });
+
+            expect(result.elo).toBe(5);
+        });
+
+        it('rejects final elo below zero', async () => {
+            vi.mocked(repo.findStatsByUserId).mockResolvedValue(
+                playerStatsRow({ elo: 10 }),
+            );
+
+            const error = await rpcErrorOf(() =>
+                service.applyPlayerStatsDelta({
+                    userId: USER_ID,
+                    xpDelta: 0,
+                    eloDelta: -11,
+                    result: 'LOSS',
+                }),
+            );
+
+            expect(error.code).toBe(status.INVALID_ARGUMENT);
+            expect(repo.applyStatsDelta).not.toHaveBeenCalled();
+        });
+
+        it('rejects a negative xpDelta', async () => {
+            const error = await rpcErrorOf(() =>
+                service.applyPlayerStatsDelta({
+                    userId: USER_ID,
+                    xpDelta: -1,
+                    eloDelta: 0,
+                    result: 'WIN',
+                }),
+            );
+
+            expect(error.code).toBe(status.INVALID_ARGUMENT);
+            expect(repo.applyStatsDelta).not.toHaveBeenCalled();
+        });
+
+        it('rejects an invalid result', async () => {
+            const error = await rpcErrorOf(() =>
+                service.applyPlayerStatsDelta({
+                    userId: USER_ID,
+                    xpDelta: 0,
+                    eloDelta: 0,
+                    result: 'INVALID',
+                }),
+            );
+
+            expect(error.code).toBe(status.INVALID_ARGUMENT);
+            expect(repo.applyStatsDelta).not.toHaveBeenCalled();
         });
     });
 });

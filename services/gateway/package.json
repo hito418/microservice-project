@@ -16,6 +16,7 @@
     },
     "dependencies": {
         "@contracts/auth": "workspace:*",
+        "@contracts/profile": "workspace:*",
         "@contracts/realtime": "workspace:*",
         "@contracts/scoring": "workspace:*",
         "@fastify/cookie": "^11.0.0",

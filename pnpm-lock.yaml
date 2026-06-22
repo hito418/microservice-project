@@ -334,6 +334,9 @@ importers:
       '@contracts/auth':
         specifier: workspace:*
         version: link:../../contracts/auth
+      '@contracts/profile':
+        specifier: workspace:*
+        version: link:../../contracts/profile
       '@contracts/realtime':
         specifier: workspace:*
         version: link:../../contracts/realtime

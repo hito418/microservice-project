@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { KYSELY } from '../db/database.module';
-import type { Database, ProfileRow } from '../db/database.types';
+import type { Database, PlayerStatsRow, ProfileRow } from '../db/database.types';
 
 const PROFILES_PKEY = 'profiles_pkey';
 
@@ -22,6 +22,23 @@ export type CreateProfileRecord = {
 export type UpdateProfileRecord = {
     displayName?: string;
     avatarUrl?: string | null;
+};
+
+export type UpsertPlayerStatsRecord = {
+    userId: string;
+    xp: number;
+    elo: number;
+    debatesCount: number;
+    wins: number;
+    losses: number;
+    draws: number;
+};
+
+export type ApplyPlayerStatsDeltaRecord = {
+    userId: string;
+    xpDelta: number;
+    eloDelta: number;
+    result: string;
 };
 
 function isDuplicateProfile(err: unknown): boolean {
@@ -87,5 +104,76 @@ export class ProfileRepository {
             .where('user_id', '=', userId)
             .executeTakeFirst();
         return result.numDeletedRows > 0n;
+    }
+
+    findStatsByUserId(userId: string): Promise<PlayerStatsRow | undefined> {
+        return this.db
+            .selectFrom('player_stats')
+            .selectAll()
+            .where('user_id', '=', userId)
+            .executeTakeFirst();
+    }
+
+    upsertStats(input: UpsertPlayerStatsRecord): Promise<PlayerStatsRow> {
+        const values = {
+            user_id: input.userId,
+            xp: input.xp,
+            elo: input.elo,
+            debates_count: input.debatesCount,
+            wins: input.wins,
+            losses: input.losses,
+            draws: input.draws,
+        };
+
+        return this.db
+            .insertInto('player_stats')
+            .values(values)
+            .onConflict((oc) =>
+                oc.column('user_id').doUpdateSet({
+                    xp: values.xp,
+                    elo: values.elo,
+                    debates_count: values.debates_count,
+                    wins: values.wins,
+                    losses: values.losses,
+                    draws: values.draws,
+                    updated_at: sql<Date>`now()`,
+                }),
+            )
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    }
+
+    async applyStatsDelta(
+        input: ApplyPlayerStatsDeltaRecord,
+    ): Promise<PlayerStatsRow> {
+        await this.db
+            .insertInto('player_stats')
+            .values({ user_id: input.userId })
+            .onConflict((oc) => oc.column('user_id').doNothing())
+            .executeTakeFirst();
+
+        return this.db
+            .updateTable('player_stats')
+            .set({
+                xp: sql<number>`xp + ${input.xpDelta}`,
+                elo: sql<number>`elo + ${input.eloDelta}`,
+                debates_count: sql<number>`debates_count + 1`,
+                wins:
+                    input.result === 'WIN'
+                        ? sql<number>`wins + 1`
+                        : sql<number>`wins`,
+                losses:
+                    input.result === 'LOSS'
+                        ? sql<number>`losses + 1`
+                        : sql<number>`losses`,
+                draws:
+                    input.result === 'DRAW'
+                        ? sql<number>`draws + 1`
+                        : sql<number>`draws`,
+                updated_at: sql<Date>`now()`,
+            })
+            .where('user_id', '=', input.userId)
+            .returningAll()
+            .executeTakeFirstOrThrow();
     }
 }

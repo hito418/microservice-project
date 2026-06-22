@@ -18,6 +18,11 @@ import type {
     ScoringServiceClient,
     SpectatorVoteResponse,
 } from '@contracts/scoring';
+import type {
+    GetPlayerStatsRequest,
+    PlayerStatsResponse,
+    ProfileServiceClient,
+} from '@contracts/profile';
 import type { AuthenticatedUser } from './auth/authenticated-user';
 import { GatewayController } from './gateway.controller';
 import type { RealtimeService } from './realtime/realtime.service';
@@ -38,6 +43,7 @@ interface CreateControllerOptions {
     onRandomDebate?: (
         request: GetRandomRecentDebateForVotingRequest,
     ) => RandomRecentDebateForVotingResponse;
+    onPlayerStats?: (request: GetPlayerStatsRequest) => PlayerStatsResponse;
     realtime?: RealtimeStub;
 }
 
@@ -45,6 +51,15 @@ function createRealtimeStub(
     onPublish: RealtimeStub['publishVoteCreated'] = () => undefined as never,
 ): RealtimeStub {
     return { publishVoteCreated: onPublish };
+}
+
+function createProfileClient(
+    getPlayerStats: ProfileServiceClient['getPlayerStats'] = () =>
+        of({} as PlayerStatsResponse),
+): ClientGrpc {
+    return {
+        getService: () => ({ getPlayerStats }),
+    } as unknown as ClientGrpc;
 }
 
 function createController(
@@ -91,6 +106,18 @@ function createController(
         voteCount: 2,
         referenceTime: '2026-01-01T00:15:00.000Z',
     }));
+    const onPlayerStats = options.onPlayerStats ?? (() => ({
+        userId: '11111111-1111-1111-1111-111111111111',
+        xp: 120,
+        elo: 1015,
+        debatesCount: 3,
+        wins: 2,
+        losses: 1,
+        draws: 0,
+        winrate: 67,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+    }));
     const realtime = options.realtime ?? createRealtimeStub();
     const scoring: Pick<
         ScoringServiceClient,
@@ -107,11 +134,18 @@ function createController(
         getFinalDebateScore: (request) => of(onFinalScore(request)),
         getRandomRecentDebateForVoting: (request) => of(onRandomDebate(request)),
     };
-    const client = {
+    const scoringClient = {
         getService: () => scoring,
     } as unknown as ClientGrpc;
+    const profile: Pick<ProfileServiceClient, 'getPlayerStats'> = {
+        getPlayerStats: (request) => of(onPlayerStats(request)),
+    };
+    const profileClient = {
+        getService: () => profile,
+    } as unknown as ClientGrpc;
     const controller = new GatewayController(
-        client,
+        scoringClient,
+        profileClient,
         realtime as RealtimeService,
     );
     controller.onModuleInit();
@@ -224,6 +258,7 @@ describe('GatewayController AI analysis results', () => {
         const client = { getService: () => scoring } as unknown as ClientGrpc;
         const controller = new GatewayController(
             client,
+            createProfileClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -247,6 +282,7 @@ describe('GatewayController AI analysis results', () => {
         const client = { getService: () => scoring } as unknown as ClientGrpc;
         const controller = new GatewayController(
             client,
+            createProfileClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -316,6 +352,7 @@ describe('GatewayController final debate scores', () => {
         const client = { getService: () => scoring } as unknown as ClientGrpc;
         const controller = new GatewayController(
             client,
+            createProfileClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -343,6 +380,7 @@ describe('GatewayController final debate scores', () => {
         const client = { getService: () => scoring } as unknown as ClientGrpc;
         const controller = new GatewayController(
             client,
+            createProfileClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -449,6 +487,7 @@ describe('GatewayController random recent debates for voting', () => {
         const client = { getService: () => scoring } as unknown as ClientGrpc;
         const controller = new GatewayController(
             client,
+            createProfileClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -478,12 +517,102 @@ describe('GatewayController random recent debates for voting', () => {
         const client = { getService: () => scoring } as unknown as ClientGrpc;
         const controller = new GatewayController(
             client,
+            createProfileClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
 
         await assert.rejects(
             () => controller.getRandomRecentDebateForVoting('0'),
+            BadRequestException,
+        );
+    });
+});
+
+describe('GatewayController player stats', () => {
+    it('takes userId from the URL and returns profile stats', async () => {
+        let received: GetPlayerStatsRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onPlayerStats: (request) => {
+                    received = request;
+                    return {
+                        userId: '11111111-1111-1111-1111-111111111111',
+                        xp: 240,
+                        elo: 1030,
+                        debatesCount: 4,
+                        wins: 3,
+                        losses: 1,
+                        draws: 0,
+                        winrate: 75,
+                        createdAt: '2026-01-01T00:00:00.000Z',
+                        updatedAt: '2026-01-02T00:00:00.000Z',
+                    };
+                },
+            },
+        );
+
+        const result = await controller.getPlayerStats(
+            '11111111-1111-1111-1111-111111111111',
+        );
+
+        assert.deepEqual(received, {
+            userId: '11111111-1111-1111-1111-111111111111',
+        });
+        assert.deepEqual(result, {
+            userId: '11111111-1111-1111-1111-111111111111',
+            xp: 240,
+            elo: 1030,
+            debatesCount: 4,
+            wins: 3,
+            losses: 1,
+            draws: 0,
+            winrate: 75,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-02T00:00:00.000Z',
+        });
+    });
+
+    it('maps profile stats NOT_FOUND errors to HTTP 404', async () => {
+        const scoringClient = {
+            getService: () => ({} as ScoringServiceClient),
+        } as unknown as ClientGrpc;
+        const profileClient = createProfileClient(() =>
+            throwError(() => ({ code: grpcStatus.NOT_FOUND })),
+        );
+        const controller = new GatewayController(
+            scoringClient,
+            profileClient,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () =>
+                controller.getPlayerStats(
+                    '11111111-1111-1111-1111-111111111111',
+                ),
+            NotFoundException,
+        );
+    });
+
+    it('maps profile stats validation errors to HTTP 400', async () => {
+        const scoringClient = {
+            getService: () => ({} as ScoringServiceClient),
+        } as unknown as ClientGrpc;
+        const profileClient = createProfileClient(() =>
+            throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
+        );
+        const controller = new GatewayController(
+            scoringClient,
+            profileClient,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getPlayerStats('not-a-uuid'),
             BadRequestException,
         );
     });
@@ -534,6 +663,7 @@ describe('GatewayController audience vote summaries', () => {
         const client = { getService: () => scoring } as unknown as ClientGrpc;
         const controller = new GatewayController(
             client,
+            createProfileClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -556,6 +686,7 @@ describe('GatewayController audience vote summaries', () => {
         const client = { getService: () => scoring } as unknown as ClientGrpc;
         const controller = new GatewayController(
             client,
+            createProfileClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();

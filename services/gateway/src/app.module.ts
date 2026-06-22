@@ -3,6 +3,10 @@ import {
     AUTH_V1_PACKAGE_NAME,
 } from "@contracts/auth";
 import {
+    PROFILE_PROTO_PATH,
+    PROFILE_V1_PACKAGE_NAME,
+} from "@contracts/profile";
+import {
     SCORING_PROTO_PATH,
     SCORING_V1_PACKAGE_NAME,
 } from "@contracts/scoring";
@@ -45,6 +49,19 @@ import { RealtimeModule } from "./realtime/realtime.module";
                         package: AUTH_V1_PACKAGE_NAME,
                         protoPath: AUTH_PROTO_PATH,
                         url: `${config.authGrpcHost}:${config.authGrpcPort}`,
+                    },
+                }),
+            },
+            {
+                name: "PROFILE_CLIENT",
+                imports: [ConfigModule],
+                inject: [ConfigService],
+                useFactory: (config: ConfigService) => ({
+                    transport: Transport.GRPC,
+                    options: {
+                        package: PROFILE_V1_PACKAGE_NAME,
+                        protoPath: PROFILE_PROTO_PATH,
+                        url: `${config.profileGrpcHost}:${config.profileGrpcPort}`,
                     },
                 }),
             },

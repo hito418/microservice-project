@@ -1,4 +1,9 @@
 import {
+    PROFILE_SERVICE_NAME,
+    type PlayerStatsResponse,
+    type ProfileServiceClient,
+} from '@contracts/profile';
+import {
     SCORING_SERVICE_NAME,
     type AiAnalysisResultResponse,
     type AudienceVoteSummaryResponse,
@@ -42,15 +47,19 @@ interface GrpcError {
 @Controller()
 export class GatewayController implements OnModuleInit {
     private scoring!: ScoringServiceClient;
+    private profile!: ProfileServiceClient;
 
     constructor(
         @Inject('SCORING_CLIENT') private readonly scoringClient: ClientGrpc,
+        @Inject('PROFILE_CLIENT') private readonly profileClient: ClientGrpc,
         private readonly realtime: RealtimeService,
     ) {}
 
     onModuleInit(): void {
         this.scoring =
             this.scoringClient.getService<ScoringServiceClient>(SCORING_SERVICE_NAME);
+        this.profile =
+            this.profileClient.getService<ProfileServiceClient>(PROFILE_SERVICE_NAME);
     }
 
     @Post('debates/:debateId/votes')
@@ -140,6 +149,17 @@ export class GatewayController implements OnModuleInit {
         }
     }
 
+    @Get('profiles/:userId/stats')
+    async getPlayerStats(
+        @Param('userId') userId: string,
+    ): Promise<PlayerStatsResponse> {
+        try {
+            return await firstValueFrom(this.profile.getPlayerStats({ userId }));
+        } catch (error) {
+            throw this.mapProfileError(error);
+        }
+    }
+
     private mapScoringError(error: unknown): Error {
         const code = (error as GrpcError | null)?.code;
         switch (code) {
@@ -153,6 +173,18 @@ export class GatewayController implements OnModuleInit {
                 return new ConflictException('you have already voted on this debate');
             default:
                 return new InternalServerErrorException('scoring service request failed');
+        }
+    }
+
+    private mapProfileError(error: unknown): Error {
+        const code = (error as GrpcError | null)?.code;
+        switch (code) {
+            case grpcStatus.INVALID_ARGUMENT:
+                return new BadRequestException('invalid profile payload');
+            case grpcStatus.NOT_FOUND:
+                return new NotFoundException('profile stats not found');
+            default:
+                return new InternalServerErrorException('profile service request failed');
         }
     }
 }
