@@ -1,5 +1,6 @@
 import {
     SCORING_SERVICE_NAME,
+    type AudienceVoteSummaryResponse,
     type ScoringServiceClient,
     type SpectatorVoteResponse,
 } from '@contracts/scoring';
@@ -15,6 +16,7 @@ import {
     NotFoundException,
     type OnModuleInit,
     Param,
+    Get,
     Post,
     UseGuards,
     Body,
@@ -62,6 +64,19 @@ export class GatewayController implements OnModuleInit {
                     { debateId, side: body.side ?? '' },
                     attachUserMetadata(user),
                 ),
+            );
+        } catch (error) {
+            throw this.mapScoringError(error);
+        }
+    }
+
+    @Get('debates/:debateId/votes/summary')
+    async getAudienceVoteSummary(
+        @Param('debateId') debateId: string,
+    ): Promise<AudienceVoteSummaryResponse> {
+        try {
+            return await firstValueFrom(
+                this.scoring.getAudienceVoteSummary({ debateId }),
             );
         } catch (error) {
             throw this.mapScoringError(error);

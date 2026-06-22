@@ -1,6 +1,9 @@
 import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import { createSpectatorVoteSchema } from '@contracts/scoring';
+import {
+    audienceVoteSummarySchema,
+    createSpectatorVoteSchema,
+} from '@contracts/scoring';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SpectatorVoteRow } from '../db/database.types';
 import {
@@ -15,6 +18,7 @@ function makeRepoMock(): ScoringRepository {
         upsertDebate: vi.fn(),
         findVoteByDebateAndUser: vi.fn(),
         createSpectatorVote: vi.fn(),
+        countSpectatorVotesBySide: vi.fn(),
     } as unknown as ScoringRepository;
 }
 
@@ -164,6 +168,155 @@ describe('createSpectatorVoteSchema', () => {
         const result = createSpectatorVoteSchema.safeParse({
             debateId: '   ',
             side: 'FOR',
+        });
+
+        expect(result.success).toBe(false);
+    });
+});
+
+describe('SpectatorVotesService.getSummary', () => {
+    let repo: ScoringRepository;
+    let service: SpectatorVotesService;
+
+    beforeEach(() => {
+        repo = makeRepoMock();
+        service = new SpectatorVotesService(repo);
+    });
+
+    async function rpcErrorOf(
+        run: () => Promise<unknown>,
+    ): Promise<{ code: number; message: string }> {
+        try {
+            await run();
+        } catch (err) {
+            expect(err).toBeInstanceOf(RpcException);
+            return (err as RpcException).getError() as {
+                code: number;
+                message: string;
+            };
+        }
+        throw new Error('expected an RpcException to be thrown');
+    }
+
+    function knownDebate(): void {
+        vi.mocked(repo.findDebateById).mockResolvedValue({
+            id: 'debate-1',
+            status: 'RUNNING',
+        });
+    }
+
+    it('returns zero counts and scores for a known debate without votes', async () => {
+        knownDebate();
+        vi.mocked(repo.countSpectatorVotesBySide).mockResolvedValue([]);
+
+        await expect(service.getSummary({ debateId: 'debate-1' })).resolves.toEqual({
+            debateId: 'debate-1',
+            totalVotes: 0,
+            forVotes: 0,
+            againstVotes: 0,
+            forScore: 0,
+            againstScore: 0,
+        });
+    });
+
+    it('scores one FOR vote as 100/0', async () => {
+        knownDebate();
+        vi.mocked(repo.countSpectatorVotesBySide).mockResolvedValue([
+            { side: 'FOR', votes: 1 },
+        ]);
+
+        await expect(service.getSummary({ debateId: 'debate-1' })).resolves.toMatchObject({
+            totalVotes: 1,
+            forVotes: 1,
+            againstVotes: 0,
+            forScore: 100,
+            againstScore: 0,
+        });
+    });
+
+    it('scores one AGAINST vote as 0/100', async () => {
+        knownDebate();
+        vi.mocked(repo.countSpectatorVotesBySide).mockResolvedValue([
+            { side: 'AGAINST', votes: 1 },
+        ]);
+
+        await expect(service.getSummary({ debateId: 'debate-1' })).resolves.toMatchObject({
+            totalVotes: 1,
+            forVotes: 0,
+            againstVotes: 1,
+            forScore: 0,
+            againstScore: 100,
+        });
+    });
+
+    it('scores one FOR and one AGAINST vote as 50/50', async () => {
+        knownDebate();
+        vi.mocked(repo.countSpectatorVotesBySide).mockResolvedValue([
+            { side: 'FOR', votes: 1 },
+            { side: 'AGAINST', votes: 1 },
+        ]);
+
+        await expect(service.getSummary({ debateId: 'debate-1' })).resolves.toMatchObject({
+            totalVotes: 2,
+            forVotes: 1,
+            againstVotes: 1,
+            forScore: 50,
+            againstScore: 50,
+        });
+    });
+
+    it('rounds two FOR and one AGAINST votes as 67/33', async () => {
+        knownDebate();
+        vi.mocked(repo.countSpectatorVotesBySide).mockResolvedValue([
+            { side: 'FOR', votes: 2 },
+            { side: 'AGAINST', votes: 1 },
+        ]);
+
+        await expect(service.getSummary({ debateId: 'debate-1' })).resolves.toMatchObject({
+            totalVotes: 3,
+            forVotes: 2,
+            againstVotes: 1,
+            forScore: 67,
+            againstScore: 33,
+        });
+    });
+
+    it('delegates debate isolation to the repository filter', async () => {
+        knownDebate();
+        vi.mocked(repo.countSpectatorVotesBySide).mockResolvedValue([
+            { side: 'FOR', votes: 1 },
+        ]);
+
+        await service.getSummary({ debateId: 'debate-1' });
+
+        expect(repo.countSpectatorVotesBySide).toHaveBeenCalledWith('debate-1');
+    });
+
+    it('rejects an unknown debate with NOT_FOUND', async () => {
+        vi.mocked(repo.findDebateById).mockResolvedValue(undefined);
+
+        const error = await rpcErrorOf(() =>
+            service.getSummary({ debateId: 'missing' }),
+        );
+
+        expect(error.code).toBe(status.NOT_FOUND);
+        expect(repo.countSpectatorVotesBySide).not.toHaveBeenCalled();
+    });
+});
+
+describe('audienceVoteSummarySchema', () => {
+    it('accepts and trims a valid debateId', () => {
+        const result = audienceVoteSummarySchema.safeParse({
+            debateId: '  debate-1 ',
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.success && result.data).toEqual({ debateId: 'debate-1' });
+    });
+
+    it('rejects a blank debateId', () => {
+        const result = audienceVoteSummarySchema.safeParse({
+            debateId: '   ',
         });
 
         expect(result.success).toBe(false);
