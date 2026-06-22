@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { ParticipantInfo, RoomResponse } from '@contracts/debate';
+import type { MessageResponse, ParticipantInfo, RoomResponse } from '@contracts/debate';
 import { PARTICIPANT_SIDES } from '@contracts/debate';
-import type { ParticipantRow, RoomRow } from '../db/database.types';
+import type { MessageRow, ParticipantRow, RoomRow } from '../db/database.types';
 import { DebateState, isValidTransition } from './debate-state';
 import { RoomRepository } from './room.repository';
 
@@ -91,6 +91,23 @@ export class DebateService {
         this.scheduleDebateTimer(roomId);
     }
 
+    async sendMessage(roomId: string, userId: string, content: string): Promise<MessageResponse> {
+        const room = await this.requireRoom(roomId);
+
+        if (room.state !== DebateState.RUNNING) {
+            throw new BadRequestException(`Cannot send message in room state ${room.state}`);
+        }
+
+        const participants = await this.repo.getParticipants(roomId);
+        const participant = participants.find((p) => p.user_id === userId);
+        if (!participant) {
+            throw new BadRequestException('User is not a participant in this room');
+        }
+
+        const msg = await this.repo.saveMessage(roomId, userId, content);
+        return toMessageResponse(msg, participant.side);
+    }
+
     private scheduleDebateTimer(roomId: string): void {
         this.logger.log(`Room ${roomId}: debate timer started (${RUNNING_DURATION_MS / 1000}s)`);
         setTimeout(() => {
@@ -133,4 +150,15 @@ export class DebateService {
 
 function toParticipantInfo(p: ParticipantRow): ParticipantInfo {
     return { userId: p.user_id, side: p.side, joinedAt: p.joined_at.toISOString() };
+}
+
+function toMessageResponse(m: MessageRow, side: string): MessageResponse {
+    return {
+        id: m.id,
+        roomId: m.room_id,
+        userId: m.user_id,
+        side,
+        content: m.content,
+        sentAt: m.sent_at.toISOString(),
+    };
 }

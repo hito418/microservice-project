@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { KYSELY } from '../db/database.module';
-import type { Database, ParticipantRow, QuestionRow, RoomRow, RoomTransitionRow } from '../db/database.types';
+import type { Database, MessageRow, ParticipantRow, QuestionRow, RoomRow, RoomTransitionRow } from '../db/database.types';
 
 @Injectable()
 export class RoomRepository {
@@ -78,6 +78,23 @@ export class RoomRepository {
             .values({ room_id: roomId, user_id: userId, side })
             .returningAll()
             .executeTakeFirstOrThrow();
+    }
+
+    async saveMessage(roomId: string, userId: string, content: string): Promise<MessageRow> {
+        return this.db
+            .insertInto('messages')
+            .values({ room_id: roomId, user_id: userId, content })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    }
+
+    getMessages(roomId: string): Promise<MessageRow[]> {
+        return this.db
+            .selectFrom('messages')
+            .selectAll()
+            .where('room_id', '=', roomId)
+            .orderBy('sent_at', 'asc')
+            .execute();
     }
 
     getTransitions(roomId: string): Promise<RoomTransitionRow[]> {

@@ -31,6 +31,16 @@ export const participants = pgTable(
     ],
 );
 
+export const messages = pgTable('messages', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    roomId: uuid('room_id')
+        .notNull()
+        .references(() => rooms.id, { onDelete: 'cascade' }),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    content: text('content').notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const roomTransitions = pgTable('room_transitions', {
     id: uuid('id').primaryKey().defaultRandom(),
     roomId: uuid('room_id')
