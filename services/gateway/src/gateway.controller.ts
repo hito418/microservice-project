@@ -1,6 +1,10 @@
 import {
     SCORING_SERVICE_NAME,
+    type AiAnalysisResultResponse,
     type AudienceVoteSummaryResponse,
+    type FinalDebateScoreResponse,
+    type GetRandomRecentDebateForVotingRequest,
+    type RandomRecentDebateForVotingResponse,
     type ScoringServiceClient,
     type SpectatorVoteResponse,
 } from '@contracts/scoring';
@@ -18,6 +22,7 @@ import {
     Param,
     Get,
     Post,
+    Query,
     UseGuards,
     Body,
 } from '@nestjs/common';
@@ -87,6 +92,54 @@ export class GatewayController implements OnModuleInit {
         }
     }
 
+    @Get('debates/:debateId/ai-analysis')
+    async getAiAnalysisResult(
+        @Param('debateId') debateId: string,
+    ): Promise<AiAnalysisResultResponse> {
+        try {
+            return await firstValueFrom(
+                this.scoring.getAiAnalysisResult({ debateId }),
+            );
+        } catch (error) {
+            throw this.mapScoringError(error);
+        }
+    }
+
+    @Get('debates/:debateId/final-score')
+    async getFinalDebateScore(
+        @Param('debateId') debateId: string,
+    ): Promise<FinalDebateScoreResponse> {
+        try {
+            return await firstValueFrom(
+                this.scoring.getFinalDebateScore({ debateId }),
+            );
+        } catch (error) {
+            throw this.mapScoringError(error);
+        }
+    }
+
+    @Get('debates/random-for-voting')
+    async getRandomRecentDebateForVoting(
+        @Query('maxAgeMinutes') maxAgeMinutes?: string,
+        @Query('candidatePoolSize') candidatePoolSize?: string,
+    ): Promise<RandomRecentDebateForVotingResponse> {
+        const request: GetRandomRecentDebateForVotingRequest = {
+            maxAgeMinutes: parseOptionalInteger(maxAgeMinutes, 'maxAgeMinutes'),
+            candidatePoolSize: parseOptionalInteger(
+                candidatePoolSize,
+                'candidatePoolSize',
+            ),
+        };
+
+        try {
+            return await firstValueFrom(
+                this.scoring.getRandomRecentDebateForVoting(request),
+            );
+        } catch (error) {
+            throw this.mapScoringError(error);
+        }
+    }
+
     private mapScoringError(error: unknown): Error {
         const code = (error as GrpcError | null)?.code;
         switch (code) {
@@ -95,11 +148,23 @@ export class GatewayController implements OnModuleInit {
             case grpcStatus.NOT_FOUND:
                 return new NotFoundException('debate not found');
             case grpcStatus.FAILED_PRECONDITION:
-                return new ConflictException('debate is not open for spectator votes');
+                return new ConflictException('scoring precondition failed');
             case grpcStatus.ALREADY_EXISTS:
                 return new ConflictException('you have already voted on this debate');
             default:
                 return new InternalServerErrorException('scoring service request failed');
         }
     }
+}
+
+function parseOptionalInteger(
+    value: string | undefined,
+    fieldName: string,
+): number | undefined {
+    if (value === undefined) return undefined;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed)) {
+        throw new BadRequestException(`${fieldName} must be an integer`);
+    }
+    return parsed;
 }

@@ -1,0 +1,214 @@
+{
+  "id": "a7d9a23f-0e99-45a4-8f92-8c37dc3d4f1c",
+  "prevId": "23960db4-93c4-4e32-8ee2-10eac2ef110f",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.debates": {
+      "name": "debates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.spectator_votes": {
+      "name": "spectator_votes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "debate_id": {
+          "name": "debate_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "side": {
+          "name": "side",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "spectator_votes_debate_id_debates_id_fk": {
+          "name": "spectator_votes_debate_id_debates_id_fk",
+          "tableFrom": "spectator_votes",
+          "tableTo": "debates",
+          "columnsFrom": [
+            "debate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "spectator_votes_debate_user_unique": {
+          "name": "spectator_votes_debate_user_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "debate_id",
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.debate_ai_analysis_results": {
+      "name": "debate_ai_analysis_results",
+      "schema": "",
+      "columns": {
+        "debate_id": {
+          "name": "debate_id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "for_score": {
+          "name": "for_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "against_score": {
+          "name": "against_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "for_feedback": {
+          "name": "for_feedback",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "against_feedback": {
+          "name": "against_feedback",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "debate_ai_analysis_results_debate_id_debates_id_fk": {
+          "name": "debate_ai_analysis_results_debate_id_debates_id_fk",
+          "tableFrom": "debate_ai_analysis_results",
+          "tableTo": "debates",
+          "columnsFrom": [
+            "debate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "debate_ai_analysis_results_status_check": {
+          "name": "debate_ai_analysis_results_status_check",
+          "value": "\"debate_ai_analysis_results\".\"status\" in ('COMPLETED', 'FAILED')"
+        },
+        "debate_ai_analysis_results_for_score_check": {
+          "name": "debate_ai_analysis_results_for_score_check",
+          "value": "\"debate_ai_analysis_results\".\"for_score\" is null or (\"debate_ai_analysis_results\".\"for_score\" >= 0 and \"debate_ai_analysis_results\".\"for_score\" <= 100)"
+        },
+        "debate_ai_analysis_results_against_score_check": {
+          "name": "debate_ai_analysis_results_against_score_check",
+          "value": "\"debate_ai_analysis_results\".\"against_score\" is null or (\"debate_ai_analysis_results\".\"against_score\" >= 0 and \"debate_ai_analysis_results\".\"against_score\" <= 100)"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -6,9 +6,15 @@ import { status as grpcStatus, type Metadata } from '@grpc/grpc-js';
 import { readUserMetadata } from '@repo/common/grpc';
 import { of, throwError } from 'rxjs';
 import type {
+    AiAnalysisResultResponse,
     AudienceVoteSummaryRequest,
     AudienceVoteSummaryResponse,
     CreateSpectatorVoteRequest,
+    FinalDebateScoreResponse,
+    GetAiAnalysisResultRequest,
+    GetFinalDebateScoreRequest,
+    GetRandomRecentDebateForVotingRequest,
+    RandomRecentDebateForVotingResponse,
     ScoringServiceClient,
     SpectatorVoteResponse,
 } from '@contracts/scoring';
@@ -23,6 +29,15 @@ interface CreateControllerOptions {
     onSummary?: (
         request: AudienceVoteSummaryRequest,
     ) => AudienceVoteSummaryResponse;
+    onAiAnalysis?: (
+        request: GetAiAnalysisResultRequest,
+    ) => AiAnalysisResultResponse;
+    onFinalScore?: (
+        request: GetFinalDebateScoreRequest,
+    ) => FinalDebateScoreResponse;
+    onRandomDebate?: (
+        request: GetRandomRecentDebateForVotingRequest,
+    ) => RandomRecentDebateForVotingResponse;
     realtime?: RealtimeStub;
 }
 
@@ -47,14 +62,50 @@ function createController(
         forScore: 0,
         againstScore: 0,
     }));
+    const onAiAnalysis = options.onAiAnalysis ?? (() => ({
+        debateId: 'debate-1',
+        status: 'COMPLETED',
+        summary: 'FOR had stronger evidence.',
+        forScore: 72,
+        againstScore: 28,
+        forFeedback: 'Clear argumentation.',
+        againstFeedback: 'Needs more evidence.',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+    }));
+    const onFinalScore = options.onFinalScore ?? (() => ({
+        debateId: 'debate-1',
+        aiForScore: 80,
+        aiAgainstScore: 20,
+        audienceForScore: 60,
+        audienceAgainstScore: 40,
+        finalForScore: 70,
+        finalAgainstScore: 30,
+        winnerSide: 'FOR',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+    }));
+    const onRandomDebate = options.onRandomDebate ?? (() => ({
+        debateId: 'debate-1',
+        status: 'VOTING',
+        voteCount: 2,
+        referenceTime: '2026-01-01T00:15:00.000Z',
+    }));
     const realtime = options.realtime ?? createRealtimeStub();
     const scoring: Pick<
         ScoringServiceClient,
-        'createSpectatorVote' | 'getAudienceVoteSummary'
+        | 'createSpectatorVote'
+        | 'getAudienceVoteSummary'
+        | 'getAiAnalysisResult'
+        | 'getFinalDebateScore'
+        | 'getRandomRecentDebateForVoting'
     > = {
         createSpectatorVote: (request, metadata) =>
             of(onCreate(request, metadata as Metadata)),
         getAudienceVoteSummary: (request) => of(onSummary(request)),
+        getAiAnalysisResult: (request) => of(onAiAnalysis(request)),
+        getFinalDebateScore: (request) => of(onFinalScore(request)),
+        getRandomRecentDebateForVoting: (request) => of(onRandomDebate(request)),
     };
     const client = {
         getService: () => scoring,
@@ -118,6 +169,323 @@ describe('GatewayController spectator votes', () => {
         assert.deepEqual(principal, { id: 'header-user', role: 'user' });
         assert.equal(result.id, 'vote-1');
         assert.equal(published, result);
+    });
+});
+
+describe('GatewayController AI analysis results', () => {
+    it('takes debateId from the URL and returns the scoring AI analysis result', async () => {
+        let received: GetAiAnalysisResultRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onAiAnalysis: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'url-debate',
+                        status: 'COMPLETED',
+                        summary: 'FOR had stronger evidence.',
+                        forScore: 72,
+                        againstScore: 28,
+                        forFeedback: 'Clear argumentation.',
+                        againstFeedback: 'Needs more evidence.',
+                        createdAt: '2026-01-01T00:00:00.000Z',
+                        updatedAt: '2026-01-01T00:00:00.000Z',
+                    };
+                },
+            },
+        );
+
+        const result = await controller.getAiAnalysisResult('url-debate');
+
+        assert.deepEqual(received, { debateId: 'url-debate' });
+        assert.deepEqual(result, {
+            debateId: 'url-debate',
+            status: 'COMPLETED',
+            summary: 'FOR had stronger evidence.',
+            forScore: 72,
+            againstScore: 28,
+            forFeedback: 'Clear argumentation.',
+            againstFeedback: 'Needs more evidence.',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        });
+    });
+
+    it('maps scoring AI analysis NOT_FOUND errors to HTTP 404', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            'createSpectatorVote' | 'getAudienceVoteSummary' | 'getAiAnalysisResult'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () =>
+                throwError(() => ({ code: grpcStatus.NOT_FOUND })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getAiAnalysisResult('missing'),
+            NotFoundException,
+        );
+    });
+
+    it('maps scoring AI analysis validation errors to HTTP 400', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            'createSpectatorVote' | 'getAudienceVoteSummary' | 'getAiAnalysisResult'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () =>
+                throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getAiAnalysisResult(''),
+            BadRequestException,
+        );
+    });
+});
+
+describe('GatewayController final debate scores', () => {
+    it('takes debateId from the URL and returns the scoring final score', async () => {
+        let received: GetFinalDebateScoreRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onFinalScore: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'url-debate',
+                        aiForScore: 80,
+                        aiAgainstScore: 20,
+                        audienceForScore: 60,
+                        audienceAgainstScore: 40,
+                        finalForScore: 70,
+                        finalAgainstScore: 30,
+                        winnerSide: 'FOR',
+                        createdAt: '2026-01-01T00:00:00.000Z',
+                        updatedAt: '2026-01-01T00:00:00.000Z',
+                    };
+                },
+            },
+        );
+
+        const result = await controller.getFinalDebateScore('url-debate');
+
+        assert.deepEqual(received, { debateId: 'url-debate' });
+        assert.deepEqual(result, {
+            debateId: 'url-debate',
+            aiForScore: 80,
+            aiAgainstScore: 20,
+            audienceForScore: 60,
+            audienceAgainstScore: 40,
+            finalForScore: 70,
+            finalAgainstScore: 30,
+            winnerSide: 'FOR',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        });
+    });
+
+    it('maps scoring final score NOT_FOUND errors to HTTP 404', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            | 'createSpectatorVote'
+            | 'getAudienceVoteSummary'
+            | 'getAiAnalysisResult'
+            | 'getFinalDebateScore'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () => of({} as AiAnalysisResultResponse),
+            getFinalDebateScore: () =>
+                throwError(() => ({ code: grpcStatus.NOT_FOUND })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getFinalDebateScore('missing'),
+            NotFoundException,
+        );
+    });
+
+    it('maps scoring final score validation errors to HTTP 400', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            | 'createSpectatorVote'
+            | 'getAudienceVoteSummary'
+            | 'getAiAnalysisResult'
+            | 'getFinalDebateScore'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () => of({} as AiAnalysisResultResponse),
+            getFinalDebateScore: () =>
+                throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getFinalDebateScore(''),
+            BadRequestException,
+        );
+    });
+});
+
+describe('GatewayController random recent debates for voting', () => {
+    it('calls scoring without overrides so scoring defaults apply', async () => {
+        let received: GetRandomRecentDebateForVotingRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onRandomDebate: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'debate-1',
+                        status: 'VOTING',
+                        voteCount: 2,
+                        referenceTime: '2026-01-01T00:15:00.000Z',
+                    };
+                },
+            },
+        );
+
+        const result = await controller.getRandomRecentDebateForVoting();
+
+        assert.deepEqual(received, {
+            maxAgeMinutes: undefined,
+            candidatePoolSize: undefined,
+        });
+        assert.deepEqual(result, {
+            debateId: 'debate-1',
+            status: 'VOTING',
+            voteCount: 2,
+            referenceTime: '2026-01-01T00:15:00.000Z',
+        });
+    });
+
+    it('passes optional query params to scoring as numbers', async () => {
+        let received: GetRandomRecentDebateForVotingRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onRandomDebate: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'debate-1',
+                        status: 'RUNNING',
+                        voteCount: 0,
+                        referenceTime: '2026-01-01T00:15:00.000Z',
+                    };
+                },
+            },
+        );
+
+        await controller.getRandomRecentDebateForVoting('30', '10');
+
+        assert.deepEqual(received, {
+            maxAgeMinutes: 30,
+            candidatePoolSize: 10,
+        });
+    });
+
+    it('rejects non-integer query params before calling scoring', async () => {
+        let scoringCalled = false;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onRandomDebate: () => {
+                    scoringCalled = true;
+                    return {} as RandomRecentDebateForVotingResponse;
+                },
+            },
+        );
+
+        await assert.rejects(
+            () => controller.getRandomRecentDebateForVoting('abc'),
+            BadRequestException,
+        );
+        assert.equal(scoringCalled, false);
+    });
+
+    it('maps scoring random debate NOT_FOUND errors to HTTP 404', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            | 'createSpectatorVote'
+            | 'getAudienceVoteSummary'
+            | 'getAiAnalysisResult'
+            | 'getFinalDebateScore'
+            | 'getRandomRecentDebateForVoting'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () => of({} as AiAnalysisResultResponse),
+            getFinalDebateScore: () => of({} as FinalDebateScoreResponse),
+            getRandomRecentDebateForVoting: () =>
+                throwError(() => ({ code: grpcStatus.NOT_FOUND })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getRandomRecentDebateForVoting(),
+            NotFoundException,
+        );
+    });
+
+    it('maps scoring random debate validation errors to HTTP 400', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            | 'createSpectatorVote'
+            | 'getAudienceVoteSummary'
+            | 'getAiAnalysisResult'
+            | 'getFinalDebateScore'
+            | 'getRandomRecentDebateForVoting'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () => of({} as AiAnalysisResultResponse),
+            getFinalDebateScore: () => of({} as FinalDebateScoreResponse),
+            getRandomRecentDebateForVoting: () =>
+                throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getRandomRecentDebateForVoting('0'),
+            BadRequestException,
+        );
     });
 });
 
