@@ -7,6 +7,8 @@ service ScoringService {
     rpc GetAudienceVoteSummary (AudienceVoteSummaryRequest) returns (AudienceVoteSummaryResponse);
     rpc StoreAiAnalysisResult (StoreAiAnalysisResultRequest) returns (AiAnalysisResultResponse);
     rpc GetAiAnalysisResult (GetAiAnalysisResultRequest) returns (AiAnalysisResultResponse);
+    rpc ComputeFinalDebateScore (ComputeFinalDebateScoreRequest) returns (FinalDebateScoreResponse);
+    rpc GetFinalDebateScore (GetFinalDebateScoreRequest) returns (FinalDebateScoreResponse);
     rpc UpsertDebate (UpsertDebateRequest) returns (DebateResponse);
 }
 
@@ -65,6 +67,30 @@ message AiAnalysisResultResponse {
     optional string for_feedback = 6;
     optional string against_feedback = 7;
     optional string error_message = 8;
+    // RFC 3339 / ISO 8601
+    string created_at = 9;
+    // RFC 3339 / ISO 8601
+    string updated_at = 10;
+}
+
+message ComputeFinalDebateScoreRequest {
+    string debate_id = 1;
+}
+
+message GetFinalDebateScoreRequest {
+    string debate_id = 1;
+}
+
+message FinalDebateScoreResponse {
+    string debate_id = 1;
+    int32 ai_for_score = 2;
+    int32 ai_against_score = 3;
+    int32 audience_for_score = 4;
+    int32 audience_against_score = 5;
+    int32 final_for_score = 6;
+    int32 final_against_score = 7;
+    // One of: FOR, AGAINST, DRAW
+    string winner_side = 8;
     // RFC 3339 / ISO 8601
     string created_at = 9;
     // RFC 3339 / ISO 8601

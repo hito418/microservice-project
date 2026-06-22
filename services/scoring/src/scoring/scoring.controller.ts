@@ -3,11 +3,16 @@ import {
     type AudienceVoteSummaryRequest,
     type AudienceVoteSummaryResponse,
     audienceVoteSummarySchema,
+    type ComputeFinalDebateScoreRequest,
+    computeFinalDebateScoreSchema,
     type CreateSpectatorVoteRequest,
     createSpectatorVoteSchema,
     type DebateResponse,
+    type FinalDebateScoreResponse,
     type GetAiAnalysisResultRequest,
     getAiAnalysisResultSchema,
+    type GetFinalDebateScoreRequest,
+    getFinalDebateScoreSchema,
     ScoringServiceControllerMethods,
     type StoreAiAnalysisResultRequest,
     storeAiAnalysisResultSchema,
@@ -58,6 +63,20 @@ export class ScoringController implements ScoringServiceController {
         request: GetAiAnalysisResultRequest,
     ): Promise<AiAnalysisResultResponse> {
         return this.scoringService.getAiAnalysisResult(request);
+    }
+
+    computeFinalDebateScore(
+        @Payload(new ZodRpcValidationPipe(computeFinalDebateScoreSchema))
+        request: ComputeFinalDebateScoreRequest,
+    ): Promise<FinalDebateScoreResponse> {
+        return this.scoringService.computeFinalDebateScore(request);
+    }
+
+    getFinalDebateScore(
+        @Payload(new ZodRpcValidationPipe(getFinalDebateScoreSchema))
+        request: GetFinalDebateScoreRequest,
+    ): Promise<FinalDebateScoreResponse> {
+        return this.scoringService.getFinalDebateScore(request);
     }
 
     upsertDebate(

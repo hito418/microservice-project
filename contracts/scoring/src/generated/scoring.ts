@@ -69,6 +69,30 @@ export interface AiAnalysisResultResponse {
   updatedAt: string;
 }
 
+export interface ComputeFinalDebateScoreRequest {
+  debateId: string;
+}
+
+export interface GetFinalDebateScoreRequest {
+  debateId: string;
+}
+
+export interface FinalDebateScoreResponse {
+  debateId: string;
+  aiForScore: number;
+  aiAgainstScore: number;
+  audienceForScore: number;
+  audienceAgainstScore: number;
+  finalForScore: number;
+  finalAgainstScore: number;
+  /** One of: FOR, AGAINST, DRAW */
+  winnerSide: string;
+  /** RFC 3339 / ISO 8601 */
+  createdAt: string;
+  /** RFC 3339 / ISO 8601 */
+  updatedAt: string;
+}
+
 export interface UpsertDebateRequest {
   debateId: string;
   /** One of: PENDING, RUNNING, VOTING, CLOSED */
@@ -90,6 +114,13 @@ export interface ScoringServiceClient {
   storeAiAnalysisResult(request: StoreAiAnalysisResultRequest, ...rest: any): Observable<AiAnalysisResultResponse>;
 
   getAiAnalysisResult(request: GetAiAnalysisResultRequest, ...rest: any): Observable<AiAnalysisResultResponse>;
+
+  computeFinalDebateScore(
+    request: ComputeFinalDebateScoreRequest,
+    ...rest: any
+  ): Observable<FinalDebateScoreResponse>;
+
+  getFinalDebateScore(request: GetFinalDebateScoreRequest, ...rest: any): Observable<FinalDebateScoreResponse>;
 
   upsertDebate(request: UpsertDebateRequest, ...rest: any): Observable<DebateResponse>;
 }
@@ -115,6 +146,16 @@ export interface ScoringServiceController {
     ...rest: any
   ): Promise<AiAnalysisResultResponse> | Observable<AiAnalysisResultResponse> | AiAnalysisResultResponse;
 
+  computeFinalDebateScore(
+    request: ComputeFinalDebateScoreRequest,
+    ...rest: any
+  ): Promise<FinalDebateScoreResponse> | Observable<FinalDebateScoreResponse> | FinalDebateScoreResponse;
+
+  getFinalDebateScore(
+    request: GetFinalDebateScoreRequest,
+    ...rest: any
+  ): Promise<FinalDebateScoreResponse> | Observable<FinalDebateScoreResponse> | FinalDebateScoreResponse;
+
   upsertDebate(
     request: UpsertDebateRequest,
     ...rest: any
@@ -128,6 +169,8 @@ export function ScoringServiceControllerMethods() {
       "getAudienceVoteSummary",
       "storeAiAnalysisResult",
       "getAiAnalysisResult",
+      "computeFinalDebateScore",
+      "getFinalDebateScore",
       "upsertDebate",
     ];
     for (const method of grpcMethods) {

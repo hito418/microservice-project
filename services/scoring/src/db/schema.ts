@@ -75,3 +75,55 @@ export const debateAiAnalysisResults = pgTable(
         ),
     ],
 );
+
+export const debateFinalScores = pgTable(
+    'debate_final_scores',
+    {
+        debateId: varchar('debate_id', { length: 255 })
+            .primaryKey()
+            .references(() => debates.id, { onDelete: 'cascade' }),
+        aiForScore: integer('ai_for_score').notNull(),
+        aiAgainstScore: integer('ai_against_score').notNull(),
+        audienceForScore: integer('audience_for_score').notNull(),
+        audienceAgainstScore: integer('audience_against_score').notNull(),
+        finalForScore: integer('final_for_score').notNull(),
+        finalAgainstScore: integer('final_against_score').notNull(),
+        winnerSide: varchar('winner_side', { length: 16 }).notNull(),
+        createdAt: timestamp('created_at', { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+    },
+    (table) => [
+        check(
+            'debate_final_scores_ai_for_score_check',
+            sql`${table.aiForScore} >= 0 and ${table.aiForScore} <= 100`,
+        ),
+        check(
+            'debate_final_scores_ai_against_score_check',
+            sql`${table.aiAgainstScore} >= 0 and ${table.aiAgainstScore} <= 100`,
+        ),
+        check(
+            'debate_final_scores_audience_for_score_check',
+            sql`${table.audienceForScore} >= 0 and ${table.audienceForScore} <= 100`,
+        ),
+        check(
+            'debate_final_scores_audience_against_score_check',
+            sql`${table.audienceAgainstScore} >= 0 and ${table.audienceAgainstScore} <= 100`,
+        ),
+        check(
+            'debate_final_scores_final_for_score_check',
+            sql`${table.finalForScore} >= 0 and ${table.finalForScore} <= 100`,
+        ),
+        check(
+            'debate_final_scores_final_against_score_check',
+            sql`${table.finalAgainstScore} >= 0 and ${table.finalAgainstScore} <= 100`,
+        ),
+        check(
+            'debate_final_scores_winner_side_check',
+            sql`${table.winnerSide} in ('FOR', 'AGAINST', 'DRAW')`,
+        ),
+    ],
+);

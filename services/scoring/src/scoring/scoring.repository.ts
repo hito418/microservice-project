@@ -4,6 +4,7 @@ import { KYSELY } from '../db/database.module';
 import type {
     Database,
     DebateAiAnalysisResultRow,
+    DebateFinalScoreRow,
     DebateRow,
     SpectatorVoteRow,
 } from '../db/database.types';
@@ -41,6 +42,17 @@ export type UpsertAiAnalysisResultRecord = {
     forFeedback?: string | null;
     againstFeedback?: string | null;
     errorMessage?: string | null;
+};
+
+export type UpsertFinalDebateScoreRecord = {
+    debateId: string;
+    aiForScore: number;
+    aiAgainstScore: number;
+    audienceForScore: number;
+    audienceAgainstScore: number;
+    finalForScore: number;
+    finalAgainstScore: number;
+    winnerSide: string;
 };
 
 function isDuplicateVote(err: unknown): boolean {
@@ -155,6 +167,49 @@ export class ScoringRepository {
     ): Promise<DebateAiAnalysisResultRow | undefined> {
         return this.db
             .selectFrom('debate_ai_analysis_results')
+            .selectAll()
+            .where('debate_id', '=', debateId)
+            .executeTakeFirst();
+    }
+
+    upsertFinalDebateScore(
+        input: UpsertFinalDebateScoreRecord,
+    ): Promise<DebateFinalScoreRow> {
+        const values = {
+            debate_id: input.debateId,
+            ai_for_score: input.aiForScore,
+            ai_against_score: input.aiAgainstScore,
+            audience_for_score: input.audienceForScore,
+            audience_against_score: input.audienceAgainstScore,
+            final_for_score: input.finalForScore,
+            final_against_score: input.finalAgainstScore,
+            winner_side: input.winnerSide,
+        };
+
+        return this.db
+            .insertInto('debate_final_scores')
+            .values(values)
+            .onConflict((oc) =>
+                oc.column('debate_id').doUpdateSet({
+                    ai_for_score: values.ai_for_score,
+                    ai_against_score: values.ai_against_score,
+                    audience_for_score: values.audience_for_score,
+                    audience_against_score: values.audience_against_score,
+                    final_for_score: values.final_for_score,
+                    final_against_score: values.final_against_score,
+                    winner_side: values.winner_side,
+                    updated_at: sql<Date>`now()`,
+                }),
+            )
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    }
+
+    findFinalDebateScoreByDebateId(
+        debateId: string,
+    ): Promise<DebateFinalScoreRow | undefined> {
+        return this.db
+            .selectFrom('debate_final_scores')
             .selectAll()
             .where('debate_id', '=', debateId)
             .executeTakeFirst();

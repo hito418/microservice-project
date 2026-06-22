@@ -10,7 +10,9 @@ import type {
     AudienceVoteSummaryRequest,
     AudienceVoteSummaryResponse,
     CreateSpectatorVoteRequest,
+    FinalDebateScoreResponse,
     GetAiAnalysisResultRequest,
+    GetFinalDebateScoreRequest,
     ScoringServiceClient,
     SpectatorVoteResponse,
 } from '@contracts/scoring';
@@ -46,15 +48,33 @@ function createController(
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
     }),
+    onFinalScore: (
+        request: GetFinalDebateScoreRequest,
+    ) => FinalDebateScoreResponse = () => ({
+        debateId: 'debate-1',
+        aiForScore: 80,
+        aiAgainstScore: 20,
+        audienceForScore: 60,
+        audienceAgainstScore: 40,
+        finalForScore: 70,
+        finalAgainstScore: 30,
+        winnerSide: 'FOR',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+    }),
 ): GatewayController {
     const scoring: Pick<
         ScoringServiceClient,
-        'createSpectatorVote' | 'getAudienceVoteSummary' | 'getAiAnalysisResult'
+        | 'createSpectatorVote'
+        | 'getAudienceVoteSummary'
+        | 'getAiAnalysisResult'
+        | 'getFinalDebateScore'
     > = {
         createSpectatorVote: (request, metadata) =>
             of(onCreate(request, metadata as Metadata)),
         getAudienceVoteSummary: (request) => of(onSummary(request)),
         getAiAnalysisResult: (request) => of(onAiAnalysis(request)),
+        getFinalDebateScore: (request) => of(onFinalScore(request)),
     };
     const client = {
         getService: () => scoring,
@@ -182,6 +202,96 @@ describe('GatewayController AI analysis results', () => {
 
         await assert.rejects(
             () => controller.getAiAnalysisResult(''),
+            BadRequestException,
+        );
+    });
+});
+
+describe('GatewayController final debate scores', () => {
+    it('takes debateId from the URL and returns the scoring final score', async () => {
+        let received: GetFinalDebateScoreRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            undefined,
+            undefined,
+            (request) => {
+                received = request;
+                return {
+                    debateId: 'url-debate',
+                    aiForScore: 80,
+                    aiAgainstScore: 20,
+                    audienceForScore: 60,
+                    audienceAgainstScore: 40,
+                    finalForScore: 70,
+                    finalAgainstScore: 30,
+                    winnerSide: 'FOR',
+                    createdAt: '2026-01-01T00:00:00.000Z',
+                    updatedAt: '2026-01-01T00:00:00.000Z',
+                };
+            },
+        );
+
+        const result = await controller.getFinalDebateScore('url-debate');
+
+        assert.deepEqual(received, { debateId: 'url-debate' });
+        assert.deepEqual(result, {
+            debateId: 'url-debate',
+            aiForScore: 80,
+            aiAgainstScore: 20,
+            audienceForScore: 60,
+            audienceAgainstScore: 40,
+            finalForScore: 70,
+            finalAgainstScore: 30,
+            winnerSide: 'FOR',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        });
+    });
+
+    it('maps scoring final score NOT_FOUND errors to HTTP 404', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            | 'createSpectatorVote'
+            | 'getAudienceVoteSummary'
+            | 'getAiAnalysisResult'
+            | 'getFinalDebateScore'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () => of({} as AiAnalysisResultResponse),
+            getFinalDebateScore: () =>
+                throwError(() => ({ code: grpcStatus.NOT_FOUND })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(client);
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getFinalDebateScore('missing'),
+            NotFoundException,
+        );
+    });
+
+    it('maps scoring final score validation errors to HTTP 400', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            | 'createSpectatorVote'
+            | 'getAudienceVoteSummary'
+            | 'getAiAnalysisResult'
+            | 'getFinalDebateScore'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () => of({} as AudienceVoteSummaryResponse),
+            getAiAnalysisResult: () => of({} as AiAnalysisResultResponse),
+            getFinalDebateScore: () =>
+                throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(client);
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getFinalDebateScore(''),
             BadRequestException,
         );
     });
