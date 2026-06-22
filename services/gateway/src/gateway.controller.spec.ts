@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
-import type { Metadata } from '@grpc/grpc-js';
+import { status as grpcStatus, type Metadata } from '@grpc/grpc-js';
 import { readUserMetadata } from '@repo/common/grpc';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import type {
+    AudienceVoteSummaryRequest,
+    AudienceVoteSummaryResponse,
     CreateSpectatorVoteRequest,
     ScoringServiceClient,
     SpectatorVoteResponse,
@@ -15,23 +17,52 @@ import { GatewayController } from './gateway.controller';
 import type { RealtimeService } from './realtime/realtime.service';
 import type { CreateSpectatorVoteDto } from './votes/create-spectator-vote.dto';
 
+type RealtimeStub = Pick<RealtimeService, 'publishVoteCreated'>;
+
+interface CreateControllerOptions {
+    onSummary?: (
+        request: AudienceVoteSummaryRequest,
+    ) => AudienceVoteSummaryResponse;
+    realtime?: RealtimeStub;
+}
+
+function createRealtimeStub(
+    onPublish: RealtimeStub['publishVoteCreated'] = () => undefined as never,
+): RealtimeStub {
+    return { publishVoteCreated: onPublish };
+}
+
 function createController(
     onCreate: (
         request: CreateSpectatorVoteRequest,
         metadata: Metadata,
     ) => SpectatorVoteResponse,
-    realtime: Pick<RealtimeService, 'publishVoteCreated'> = {
-        publishVoteCreated: () => undefined as never,
-    },
+    options: CreateControllerOptions = {},
 ): GatewayController {
-    const scoring: Pick<ScoringServiceClient, 'createSpectatorVote'> = {
+    const onSummary = options.onSummary ?? (() => ({
+        debateId: 'debate-1',
+        totalVotes: 0,
+        forVotes: 0,
+        againstVotes: 0,
+        forScore: 0,
+        againstScore: 0,
+    }));
+    const realtime = options.realtime ?? createRealtimeStub();
+    const scoring: Pick<
+        ScoringServiceClient,
+        'createSpectatorVote' | 'getAudienceVoteSummary'
+    > = {
         createSpectatorVote: (request, metadata) =>
             of(onCreate(request, metadata as Metadata)),
+        getAudienceVoteSummary: (request) => of(onSummary(request)),
     };
     const client = {
         getService: () => scoring,
     } as unknown as ClientGrpc;
-    const controller = new GatewayController(client, realtime as RealtimeService);
+    const controller = new GatewayController(
+        client,
+        realtime as RealtimeService,
+    );
     controller.onModuleInit();
     return controller;
 }
@@ -73,10 +104,10 @@ describe('GatewayController spectator votes', () => {
                 };
             },
             {
-                publishVoteCreated: (vote) => {
+                realtime: createRealtimeStub((vote) => {
                     published = vote;
                     return undefined as never;
-                },
+                }),
             },
         );
 
@@ -87,5 +118,83 @@ describe('GatewayController spectator votes', () => {
         assert.deepEqual(principal, { id: 'header-user', role: 'user' });
         assert.equal(result.id, 'vote-1');
         assert.equal(published, result);
+    });
+});
+
+describe('GatewayController audience vote summaries', () => {
+    it('takes debateId from the URL and returns the scoring summary', async () => {
+        let received: AudienceVoteSummaryRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onSummary: (request) => {
+                    received = request;
+                    return {
+                        debateId: 'url-debate',
+                        totalVotes: 3,
+                        forVotes: 2,
+                        againstVotes: 1,
+                        forScore: 67,
+                        againstScore: 33,
+                    };
+                },
+            },
+        );
+
+        const result = await controller.getAudienceVoteSummary('url-debate');
+
+        assert.deepEqual(received, { debateId: 'url-debate' });
+        assert.deepEqual(result, {
+            debateId: 'url-debate',
+            totalVotes: 3,
+            forVotes: 2,
+            againstVotes: 1,
+            forScore: 67,
+            againstScore: 33,
+        });
+    });
+
+    it('maps scoring NOT_FOUND errors to HTTP 404', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            'createSpectatorVote' | 'getAudienceVoteSummary'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () =>
+                throwError(() => ({ code: grpcStatus.NOT_FOUND })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getAudienceVoteSummary('missing'),
+            NotFoundException,
+        );
+    });
+
+    it('maps scoring validation errors to HTTP 400', async () => {
+        const scoring: Pick<
+            ScoringServiceClient,
+            'createSpectatorVote' | 'getAudienceVoteSummary'
+        > = {
+            createSpectatorVote: () => of({} as SpectatorVoteResponse),
+            getAudienceVoteSummary: () =>
+                throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
+        };
+        const client = { getService: () => scoring } as unknown as ClientGrpc;
+        const controller = new GatewayController(
+            client,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.getAudienceVoteSummary(''),
+            BadRequestException,
+        );
     });
 });

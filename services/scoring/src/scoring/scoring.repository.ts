@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { KYSELY } from '../db/database.module';
 import type { Database, DebateRow, SpectatorVoteRow } from '../db/database.types';
 
@@ -20,6 +20,11 @@ export type CreateSpectatorVoteRecord = {
 export type UpsertDebateRecord = {
     debateId: string;
     status: string;
+};
+
+export type SpectatorVoteCount = {
+    side: string;
+    votes: number;
 };
 
 function isDuplicateVote(err: unknown): boolean {
@@ -82,5 +87,17 @@ export class ScoringRepository {
             }
             throw error;
         }
+    }
+
+    countSpectatorVotesBySide(debateId: string): Promise<SpectatorVoteCount[]> {
+        return this.db
+            .selectFrom('spectator_votes')
+            .select([
+                'side',
+                sql<number>`count(*)::int`.as('votes'),
+            ])
+            .where('debate_id', '=', debateId)
+            .groupBy('side')
+            .execute();
     }
 }

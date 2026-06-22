@@ -4,6 +4,7 @@ package scoring.v1;
 
 service ScoringService {
     rpc CreateSpectatorVote (CreateSpectatorVoteRequest) returns (SpectatorVoteResponse);
+    rpc GetAudienceVoteSummary (AudienceVoteSummaryRequest) returns (AudienceVoteSummaryResponse);
     rpc UpsertDebate (UpsertDebateRequest) returns (DebateResponse);
 }
 
@@ -22,6 +23,19 @@ message SpectatorVoteResponse {
     string side = 4;
     // RFC 3339 / ISO 8601
     string created_at = 5;
+}
+
+message AudienceVoteSummaryRequest {
+    string debate_id = 1;
+}
+
+message AudienceVoteSummaryResponse {
+    string debate_id = 1;
+    int32 total_votes = 2;
+    int32 for_votes = 3;
+    int32 against_votes = 4;
+    int32 for_score = 5;
+    int32 against_score = 6;
 }
 
 message UpsertDebateRequest {
