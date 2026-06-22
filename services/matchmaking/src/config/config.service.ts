@@ -20,6 +20,13 @@ export class ConfigService {
         return process.env.REDIS_PASSWORD || undefined;
     }
 
+    get debateGrpcHost(): string {
+        return process.env.DEBATE_GRPC_HOST ?? '127.0.0.1';
+    }
+    get debateGrpcPort(): number {
+        return parsePort('DEBATE_GRPC_PORT', 50053);
+    }
+
     get logLevels(): LogLevel[] {
         return resolveLogLevels();
     }

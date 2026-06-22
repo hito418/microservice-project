@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package debate.v1;
+
+service DebateService {
+  rpc CreateRoom(CreateRoomRequest) returns (RoomResponse);
+  rpc JoinRoom(JoinRoomRequest) returns (RoomResponse);
+}
+
+message CreateRoomRequest {
+  string debate_id = 1;
+}
+
+message JoinRoomRequest {
+  string room_id = 1;
+}
+
+message ParticipantInfo {
+  string user_id = 1;
+  string side = 2;
+  string joined_at = 3;
+}
+
+message RoomResponse {
+  string id = 1;
+  string debate_id = 2;
+  string state = 3;
+  string question = 4;
+  repeated ParticipantInfo participants = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}

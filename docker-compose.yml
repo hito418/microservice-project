@@ -121,6 +121,8 @@ services:
             - MATCHMAKING_GRPC_PORT=50054
             - REDIS_HOST=redis
             - REDIS_PORT=6379
+            - DEBATE_GRPC_HOST=debate
+            - DEBATE_GRPC_PORT=50053
         networks:
             - matchmaking-service
             - gateway

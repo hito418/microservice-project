@@ -15,48 +15,42 @@ export interface PlayerState {
     queuedAt: number;
 }
 
+export interface EnqueueResult {
+    state: PlayerState;
+    /** Set only when status is MATCHED — the other player's userId */
+    opponentId?: string;
+    opponentQueuedAt?: number;
+}
+
 @Injectable()
 export class MatchmakingRepository implements OnApplicationShutdown {
     constructor(@Inject(REDIS) private readonly redis: Redis) {}
 
-    async enqueue(userId: string): Promise<PlayerState> {
+    async enqueue(userId: string): Promise<EnqueueResult> {
         const now = Date.now();
 
         const existing = await this.getPlayerState(userId);
-        if (existing) return existing;
+        if (existing) return { state: existing };
 
         // Atomically pop the oldest waiting player from the queue.
-        // ZPOPMIN returns [member, score] or [] when empty.
         const popped = await this.redis.zpopmin(QUEUE_KEY, 1);
 
         if (popped.length >= 2) {
             const opponentId = popped[0];
             const opponentQueuedAt = Number(popped[1]);
-            // Opponent is now matched — will be updated when debate room is created (#22).
-            // For now, mark both as MATCHED with empty room IDs (filled by trigger-debate).
-            const state: PlayerState = {
+
+            const waitingState: PlayerState = {
                 userId,
                 status: 'MATCHED',
                 debateRoomId: '',
                 debateId: '',
                 queuedAt: now,
             };
-            const opponentState: PlayerState = {
-                userId: opponentId,
-                status: 'MATCHED',
-                debateRoomId: '',
-                debateId: '',
-                queuedAt: opponentQueuedAt,
-            };
-            await Promise.all([
-                this.setPlayerState(userId, state),
-                this.setPlayerState(opponentId, opponentState),
-            ]);
-            // Return userId + opponentId so the service layer can create the debate room.
-            return { ...state, debateId: opponentId };
+            await this.setPlayerState(userId, waitingState);
+            // Opponent state will be updated with room details once debate room is created.
+            return { state: waitingState, opponentId, opponentQueuedAt };
         }
 
-        // No opponent found — add self to queue.
         const waitingState: PlayerState = {
             userId,
             status: 'WAITING',
@@ -68,7 +62,7 @@ export class MatchmakingRepository implements OnApplicationShutdown {
             this.redis.zadd(QUEUE_KEY, now, userId),
             this.setPlayerState(userId, waitingState),
         ]);
-        return waitingState;
+        return { state: waitingState };
     }
 
     async getPlayerState(userId: string): Promise<PlayerState | null> {
