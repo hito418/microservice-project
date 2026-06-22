@@ -7,8 +7,14 @@ import type {
     FinalScoreWinnerSide,
     GetAiAnalysisResultRequest,
     GetFinalDebateScoreRequest,
+    GetRandomRecentDebateForVotingRequest,
+    RandomRecentDebateForVotingResponse,
     StoreAiAnalysisResultRequest,
     UpsertDebateRequest,
+} from '@contracts/scoring';
+import {
+    DEFAULT_RANDOM_DEBATE_CANDIDATE_POOL_SIZE,
+    DEFAULT_RANDOM_DEBATE_MAX_AGE_MINUTES,
 } from '@contracts/scoring';
 import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
@@ -18,6 +24,11 @@ import type {
     DebateRow,
 } from '../db/database.types';
 import { ScoringRepository } from './scoring.repository';
+
+const MAX_RANDOM_DEBATE_AGE_MINUTES = 1440;
+const MAX_RANDOM_DEBATE_CANDIDATE_POOL_SIZE = 100;
+const VOTABLE_DEBATE_STATUSES = ['RUNNING', 'VOTING'] as const;
+const MILLIS_PER_MINUTE = 60_000;
 
 @Injectable()
 export class ScoringService {
@@ -150,6 +161,47 @@ export class ScoringService {
         return toFinalDebateScoreResponse(result);
     }
 
+    async getRandomRecentDebateForVoting(
+        request: GetRandomRecentDebateForVotingRequest,
+    ): Promise<RandomRecentDebateForVotingResponse> {
+        const maxAgeMinutes = boundedInteger(
+            request.maxAgeMinutes,
+            DEFAULT_RANDOM_DEBATE_MAX_AGE_MINUTES,
+            MAX_RANDOM_DEBATE_AGE_MINUTES,
+            'maxAgeMinutes',
+        );
+        const candidatePoolSize = boundedInteger(
+            request.candidatePoolSize,
+            DEFAULT_RANDOM_DEBATE_CANDIDATE_POOL_SIZE,
+            MAX_RANDOM_DEBATE_CANDIDATE_POOL_SIZE,
+            'candidatePoolSize',
+        );
+        const cutoff = new Date(Date.now() - maxAgeMinutes * MILLIS_PER_MINUTE);
+
+        const candidates = await this.scoringRepository.findRecentDebatesForVoting({
+            cutoff,
+            limit: candidatePoolSize,
+            statuses: VOTABLE_DEBATE_STATUSES,
+        });
+        if (candidates.length === 0) {
+            throw new RpcException({
+                code: status.NOT_FOUND,
+                message: 'No recent debate is available for voting',
+            });
+        }
+
+        const candidate =
+            candidates[Math.floor(Math.random() * candidates.length)] ??
+            candidates[0];
+
+        return {
+            debateId: candidate.debateId,
+            status: candidate.status,
+            voteCount: candidate.voteCount,
+            referenceTime: candidate.referenceTime.toISOString(),
+        };
+    }
+
     private async getAudienceScores(
         debateId: string,
     ): Promise<{ forScore: number; againstScore: number }> {
@@ -229,4 +281,20 @@ function winnerSide(
     if (finalForScore > finalAgainstScore) return 'FOR';
     if (finalAgainstScore > finalForScore) return 'AGAINST';
     return 'DRAW';
+}
+
+function boundedInteger(
+    value: number | undefined,
+    fallback: number,
+    max: number,
+    fieldName: string,
+): number {
+    const resolved = value ?? fallback;
+    if (!Number.isInteger(resolved) || resolved < 1 || resolved > max) {
+        throw new RpcException({
+            code: status.INVALID_ARGUMENT,
+            message: `${fieldName} must be an integer between 1 and ${max}`,
+        });
+    }
+    return resolved;
 }

@@ -9,6 +9,7 @@ service ScoringService {
     rpc GetAiAnalysisResult (GetAiAnalysisResultRequest) returns (AiAnalysisResultResponse);
     rpc ComputeFinalDebateScore (ComputeFinalDebateScoreRequest) returns (FinalDebateScoreResponse);
     rpc GetFinalDebateScore (GetFinalDebateScoreRequest) returns (FinalDebateScoreResponse);
+    rpc GetRandomRecentDebateForVoting (GetRandomRecentDebateForVotingRequest) returns (RandomRecentDebateForVotingResponse);
     rpc UpsertDebate (UpsertDebateRequest) returns (DebateResponse);
 }
 
@@ -95,6 +96,21 @@ message FinalDebateScoreResponse {
     string created_at = 9;
     // RFC 3339 / ISO 8601
     string updated_at = 10;
+}
+
+message GetRandomRecentDebateForVotingRequest {
+    optional int32 max_age_minutes = 1;
+    optional int32 candidate_pool_size = 2;
+}
+
+message RandomRecentDebateForVotingResponse {
+    string debate_id = 1;
+    string status = 2;
+    int32 vote_count = 3;
+    // RFC 3339 / ISO 8601.
+    // Temporary approximation based on debates.updated_at until debate lifecycle
+    // exposes a dedicated voting_started_at / finished_at timestamp.
+    string reference_time = 4;
 }
 
 message UpsertDebateRequest {

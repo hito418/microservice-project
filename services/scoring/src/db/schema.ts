@@ -17,6 +17,14 @@ import {
 export const debates = pgTable('debates', {
     id: varchar('id', { length: 255 }).primaryKey(),
     status: varchar('status', { length: 32 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+        .notNull()
+        .defaultNow(),
+    // Temporary recent-voting reference for the scoring random picker until the
+    // debate lifecycle owns a dedicated voting_started_at / finished_at field.
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+        .notNull()
+        .defaultNow(),
 });
 
 export const spectatorVotes = pgTable(

@@ -5,7 +5,7 @@ import {
     createSpectatorVoteSchema,
 } from '@contracts/scoring';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SpectatorVoteRow } from '../db/database.types';
+import type { DebateRow, SpectatorVoteRow } from '../db/database.types';
 import {
     DuplicateSpectatorVoteError,
     ScoringRepository,
@@ -29,6 +29,16 @@ function voteRow(overrides: Partial<SpectatorVoteRow> = {}): SpectatorVoteRow {
         user_id: 'user-1',
         side: 'FOR',
         created_at: new Date('2026-01-01T00:00:00Z'),
+        ...overrides,
+    };
+}
+
+function debateRow(overrides: Partial<DebateRow> = {}): DebateRow {
+    return {
+        id: 'debate-1',
+        status: 'RUNNING',
+        created_at: new Date('2026-01-01T00:00:00Z'),
+        updated_at: new Date('2026-01-01T00:00:00Z'),
         ...overrides,
     };
 }
@@ -58,10 +68,7 @@ describe('SpectatorVotesService.createVote', () => {
     }
 
     it('creates a vote and maps the row to a proto response', async () => {
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'RUNNING',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findVoteByDebateAndUser).mockResolvedValue(undefined);
         vi.mocked(repo.createSpectatorVote).mockResolvedValue(voteRow());
 
@@ -96,10 +103,9 @@ describe('SpectatorVotesService.createVote', () => {
     });
 
     it('rejects a non-votable debate with FAILED_PRECONDITION', async () => {
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'CLOSED',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(
+            debateRow({ status: 'CLOSED' }),
+        );
 
         const error = await rpcErrorOf(() =>
             service.createVote({ debateId: 'debate-1', side: 'FOR' }, 'user-1'),
@@ -109,10 +115,7 @@ describe('SpectatorVotesService.createVote', () => {
     });
 
     it('rejects a duplicate vote (pre-check) with ALREADY_EXISTS', async () => {
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'RUNNING',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findVoteByDebateAndUser).mockResolvedValue(voteRow());
 
         const error = await rpcErrorOf(() =>
@@ -124,10 +127,7 @@ describe('SpectatorVotesService.createVote', () => {
     });
 
     it('translates a unique-violation race on insert to ALREADY_EXISTS', async () => {
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'RUNNING',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findVoteByDebateAndUser).mockResolvedValue(undefined);
         vi.mocked(repo.createSpectatorVote).mockRejectedValue(
             new DuplicateSpectatorVoteError('debate-1', 'user-1'),
@@ -199,10 +199,7 @@ describe('SpectatorVotesService.getSummary', () => {
     }
 
     function knownDebate(): void {
-        vi.mocked(repo.findDebateById).mockResolvedValue({
-            id: 'debate-1',
-            status: 'RUNNING',
-        });
+        vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
     }
 
     it('returns zero counts and scores for a known debate without votes', async () => {

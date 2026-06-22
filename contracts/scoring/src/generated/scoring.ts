@@ -93,6 +93,23 @@ export interface FinalDebateScoreResponse {
   updatedAt: string;
 }
 
+export interface GetRandomRecentDebateForVotingRequest {
+  maxAgeMinutes?: number | undefined;
+  candidatePoolSize?: number | undefined;
+}
+
+export interface RandomRecentDebateForVotingResponse {
+  debateId: string;
+  status: string;
+  voteCount: number;
+  /**
+   * RFC 3339 / ISO 8601.
+   * Temporary approximation based on debates.updated_at until debate lifecycle
+   * exposes a dedicated voting_started_at / finished_at timestamp.
+   */
+  referenceTime: string;
+}
+
 export interface UpsertDebateRequest {
   debateId: string;
   /** One of: PENDING, RUNNING, VOTING, CLOSED */
@@ -121,6 +138,11 @@ export interface ScoringServiceClient {
   ): Observable<FinalDebateScoreResponse>;
 
   getFinalDebateScore(request: GetFinalDebateScoreRequest, ...rest: any): Observable<FinalDebateScoreResponse>;
+
+  getRandomRecentDebateForVoting(
+    request: GetRandomRecentDebateForVotingRequest,
+    ...rest: any
+  ): Observable<RandomRecentDebateForVotingResponse>;
 
   upsertDebate(request: UpsertDebateRequest, ...rest: any): Observable<DebateResponse>;
 }
@@ -156,6 +178,14 @@ export interface ScoringServiceController {
     ...rest: any
   ): Promise<FinalDebateScoreResponse> | Observable<FinalDebateScoreResponse> | FinalDebateScoreResponse;
 
+  getRandomRecentDebateForVoting(
+    request: GetRandomRecentDebateForVotingRequest,
+    ...rest: any
+  ):
+    | Promise<RandomRecentDebateForVotingResponse>
+    | Observable<RandomRecentDebateForVotingResponse>
+    | RandomRecentDebateForVotingResponse;
+
   upsertDebate(
     request: UpsertDebateRequest,
     ...rest: any
@@ -171,6 +201,7 @@ export function ScoringServiceControllerMethods() {
       "getAiAnalysisResult",
       "computeFinalDebateScore",
       "getFinalDebateScore",
+      "getRandomRecentDebateForVoting",
       "upsertDebate",
     ];
     for (const method of grpcMethods) {
