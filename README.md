@@ -9,13 +9,40 @@ A small NestJS microservices monorepo managed with pnpm and Turborepo.
 
 ## JWT keys
 
-The auth service signs with a private key; verifiers (future gateway middleware) use the matching public key. Generate a dev keypair before booting docker-compose:
+Auth signs JWTs with a **private** key; the gateway verifies them with the matching **public** key. The signing is asymmetric (`ES256` by default), so no shared secret crosses a service boundary — the gateway only ever holds the public key. Keys are read from `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH`, or inline via `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` (PEM with `\n` escapes).
+
+Generate a dev keypair before booting docker-compose:
 
 ```sh
-pnpm keys:gen          # writes .secrets/jwt-dev/{jwt-private,jwt-public}.pem
+pnpm keys:gen          # writes .secrets/jwt/{private,public}.pem (ES256 / P-256)
+pnpm keys:gen --force  # overwrite an existing keypair
 ```
 
-`.secrets/` is gitignored. **Do not use the generated dev keypair in production** — mint keys in your secrets manager.
+docker-compose bind-mounts these into the containers automatically — the private key into auth, the public key into the gateway.
+
+### Generating keys manually
+
+`pnpm keys:gen` is just a wrapper around `openssl`. The equivalent ES256 (P-256) keypair:
+
+```sh
+mkdir -p .secrets/jwt
+# Private key (PKCS#8) — auth uses this to sign
+openssl ecparam -name prime256v1 -genkey -noout \
+  | openssl pkcs8 -topk8 -nocrypt -out .secrets/jwt/private.pem
+# Public key (SPKI), derived from the private key — the gateway uses this to verify
+openssl ec -in .secrets/jwt/private.pem -pubout -out .secrets/jwt/public.pem
+```
+
+To use RSA (`RS256`/`RS384`) instead, generate an RSA keypair and set `JWT_ALGORITHM` accordingly on both services:
+
+```sh
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out .secrets/jwt/private.pem
+openssl rsa -in .secrets/jwt/private.pem -pubout -out .secrets/jwt/public.pem
+```
+
+Supported algorithms: `ES256` (default), `ES384`, `RS256`, `RS384`.
+
+`.secrets/` is gitignored. **Do not use a dev keypair in production** — mint keys in your secrets manager and inject them via env or mounted volumes.
 
 ## Layout
 

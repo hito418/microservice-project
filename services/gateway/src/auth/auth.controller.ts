@@ -68,7 +68,10 @@ export class AuthController implements OnModuleInit {
             this.logger.debug(`signup ok id=${result.id} email=${result.email}`);
             return result;
         } catch (err) {
-            throw this.mapSignupError(err, dto.email);
+            if (err) {
+                throw this.mapSignupError(err, dto.email);
+            }
+            throw err;
         }
     }
 
@@ -83,7 +86,10 @@ export class AuthController implements OnModuleInit {
         try {
             result = await firstValueFrom(this.auth.login(dto));
         } catch (err) {
-            throw this.mapLoginError(err, dto.email);
+            if (err) {
+                throw this.mapLoginError(err, dto.email);
+            }
+            throw err;
         }
 
         reply.setCookie(this.config.authCookieName, result.jwt, {
@@ -103,9 +109,8 @@ export class AuthController implements OnModuleInit {
         };
     }
 
-    private mapSignupError(err: unknown, email: string): Error {
-        const grpcErr = err as GrpcError | null;
-        const code = grpcErr?.code;
+    private mapSignupError(err: GrpcError, email: string): Error {
+        const code = err?.code;
         switch (code) {
             case grpcStatus.ALREADY_EXISTS:
                 this.logger.warn(`signup conflict email=${email}`);
@@ -115,15 +120,14 @@ export class AuthController implements OnModuleInit {
                 return new BadRequestException('invalid signup payload');
             default:
                 this.logger.error(
-                    `signup failed email=${email} code=${code ?? 'unknown'} details=${grpcErr?.details ?? grpcErr?.message ?? ''}`,
+                    `signup failed email=${email} code=${code ?? 'unknown'} details=${err?.details ?? err?.message ?? ''}`,
                 );
                 return new InternalServerErrorException('auth call failed');
         }
     }
 
-    private mapLoginError(err: unknown, email: string): Error {
-        const grpcErr = err as GrpcError | null;
-        const code = grpcErr?.code;
+    private mapLoginError(err: GrpcError, email: string): Error {
+        const code = err?.code;
         switch (code) {
             case grpcStatus.UNAUTHENTICATED:
                 this.logger.warn(`login unauthorized email=${email}`);
@@ -133,7 +137,7 @@ export class AuthController implements OnModuleInit {
                 return new BadRequestException('invalid login payload');
             default:
                 this.logger.error(
-                    `login failed email=${email} code=${code ?? 'unknown'} details=${grpcErr?.details ?? grpcErr?.message ?? ''}`,
+                    `login failed email=${email} code=${code ?? 'unknown'} details=${err.details ?? err.message ?? ''}`,
                 );
                 return new InternalServerErrorException('auth call failed');
         }

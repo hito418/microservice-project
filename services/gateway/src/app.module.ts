@@ -2,6 +2,10 @@ import {
     AUTH_PROTO_PATH,
     AUTH_V1_PACKAGE_NAME,
 } from "@contracts/auth";
+import {
+    SCORING_PROTO_PATH,
+    SCORING_V1_PACKAGE_NAME,
+} from "@contracts/scoring";
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { ClientsModule, Transport } from "@nestjs/microservices";
@@ -17,14 +21,15 @@ import { GatewayController } from "./gateway.controller";
         JwtModule.register({}),
         ClientsModule.registerAsync([
             {
-                name: "SCORING_SERVICE",
+                name: "SCORING_CLIENT",
                 imports: [ConfigModule],
                 inject: [ConfigService],
                 useFactory: (config: ConfigService) => ({
-                    transport: Transport.TCP,
+                    transport: Transport.GRPC,
                     options: {
-                        host: config.scoringHost,
-                        port: config.scoringPort,
+                        package: SCORING_V1_PACKAGE_NAME,
+                        protoPath: SCORING_PROTO_PATH,
+                        url: `${config.scoringGrpcHost}:${config.scoringGrpcPort}`,
                     },
                 }),
             },
@@ -43,7 +48,7 @@ import { GatewayController } from "./gateway.controller";
             },
         ]),
     ],
-    controllers: [GatewayController, AuthController],
+    controllers: [AuthController, GatewayController],
     providers: [AuthUserGuard],
 })
 export class AppModule {}
