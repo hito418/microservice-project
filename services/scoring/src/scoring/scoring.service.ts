@@ -1,6 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import type { DebateResponse, UpsertDebateRequest } from '@contracts/scoring';
-import type { DebateRow } from '../db/database.types';
+import type {
+    AiAnalysisResultResponse,
+    ComputeFinalDebateScoreRequest,
+    DebateResponse,
+    FinalDebateScoreResponse,
+    FinalScoreWinnerSide,
+    GetAiAnalysisResultRequest,
+    GetFinalDebateScoreRequest,
+    StoreAiAnalysisResultRequest,
+    UpsertDebateRequest,
+} from '@contracts/scoring';
+import { status } from '@grpc/grpc-js';
+import { RpcException } from '@nestjs/microservices';
+import type {
+    DebateAiAnalysisResultRow,
+    DebateFinalScoreRow,
+    DebateRow,
+} from '../db/database.types';
 import { ScoringRepository } from './scoring.repository';
 
 @Injectable()
@@ -16,6 +32,137 @@ export class ScoringService {
         });
         return toResponse(debate);
     }
+
+    async storeAiAnalysisResult(
+        request: StoreAiAnalysisResultRequest,
+    ): Promise<AiAnalysisResultResponse> {
+        const debate = await this.scoringRepository.findDebateById(request.debateId);
+        if (!debate) {
+            throw new RpcException({
+                code: status.NOT_FOUND,
+                message: `Debate ${request.debateId} was not found`,
+            });
+        }
+
+        const result = await this.scoringRepository.upsertAiAnalysisResult({
+            debateId: request.debateId,
+            status: request.status,
+            summary: request.summary,
+            forScore: request.forScore,
+            againstScore: request.againstScore,
+            forFeedback: request.forFeedback,
+            againstFeedback: request.againstFeedback,
+            errorMessage: request.errorMessage,
+        });
+
+        return toAiAnalysisResponse(result);
+    }
+
+    async getAiAnalysisResult(
+        request: GetAiAnalysisResultRequest,
+    ): Promise<AiAnalysisResultResponse> {
+        const result = await this.scoringRepository.findAiAnalysisResultByDebateId(
+            request.debateId,
+        );
+        if (!result) {
+            throw new RpcException({
+                code: status.NOT_FOUND,
+                message: `AI analysis result for debate ${request.debateId} was not found`,
+            });
+        }
+
+        return toAiAnalysisResponse(result);
+    }
+
+    async computeFinalDebateScore(
+        request: ComputeFinalDebateScoreRequest,
+    ): Promise<FinalDebateScoreResponse> {
+        const debate = await this.scoringRepository.findDebateById(request.debateId);
+        if (!debate) {
+            throw new RpcException({
+                code: status.NOT_FOUND,
+                message: `Debate ${request.debateId} was not found`,
+            });
+        }
+
+        const aiAnalysis =
+            await this.scoringRepository.findAiAnalysisResultByDebateId(
+                request.debateId,
+            );
+        if (!aiAnalysis) {
+            throw new RpcException({
+                code: status.FAILED_PRECONDITION,
+                message: `AI analysis result for debate ${request.debateId} is required before final scoring`,
+            });
+        }
+
+        if (aiAnalysis.status !== 'COMPLETED') {
+            throw new RpcException({
+                code: status.FAILED_PRECONDITION,
+                message: `AI analysis result for debate ${request.debateId} is not completed`,
+            });
+        }
+
+        if (aiAnalysis.for_score === null || aiAnalysis.against_score === null) {
+            throw new RpcException({
+                code: status.FAILED_PRECONDITION,
+                message: `AI analysis result for debate ${request.debateId} has no scores`,
+            });
+        }
+
+        const audienceSummary = await this.getAudienceScores(request.debateId);
+        const finalForScore = weightedScore(
+            aiAnalysis.for_score,
+            audienceSummary.forScore,
+        );
+        const finalAgainstScore = weightedScore(
+            aiAnalysis.against_score,
+            audienceSummary.againstScore,
+        );
+
+        const finalScore = await this.scoringRepository.upsertFinalDebateScore({
+            debateId: request.debateId,
+            aiForScore: aiAnalysis.for_score,
+            aiAgainstScore: aiAnalysis.against_score,
+            audienceForScore: audienceSummary.forScore,
+            audienceAgainstScore: audienceSummary.againstScore,
+            finalForScore,
+            finalAgainstScore,
+            winnerSide: winnerSide(finalForScore, finalAgainstScore),
+        });
+
+        return toFinalDebateScoreResponse(finalScore);
+    }
+
+    async getFinalDebateScore(
+        request: GetFinalDebateScoreRequest,
+    ): Promise<FinalDebateScoreResponse> {
+        const result = await this.scoringRepository.findFinalDebateScoreByDebateId(
+            request.debateId,
+        );
+        if (!result) {
+            throw new RpcException({
+                code: status.NOT_FOUND,
+                message: `Final score for debate ${request.debateId} was not found`,
+            });
+        }
+
+        return toFinalDebateScoreResponse(result);
+    }
+
+    private async getAudienceScores(
+        debateId: string,
+    ): Promise<{ forScore: number; againstScore: number }> {
+        const counts = await this.scoringRepository.countSpectatorVotesBySide(debateId);
+        const forVotes = countSide(counts, 'FOR');
+        const againstVotes = countSide(counts, 'AGAINST');
+        const totalVotes = forVotes + againstVotes;
+
+        return {
+            forScore: percentageScore(forVotes, totalVotes),
+            againstScore: percentageScore(againstVotes, totalVotes),
+        };
+    }
 }
 
 function toResponse(debate: DebateRow): DebateResponse {
@@ -23,4 +170,63 @@ function toResponse(debate: DebateRow): DebateResponse {
         id: debate.id,
         status: debate.status,
     };
+}
+
+function toAiAnalysisResponse(
+    row: DebateAiAnalysisResultRow,
+): AiAnalysisResultResponse {
+    return {
+        debateId: row.debate_id,
+        status: row.status,
+        summary: row.summary ?? undefined,
+        forScore: row.for_score ?? undefined,
+        againstScore: row.against_score ?? undefined,
+        forFeedback: row.for_feedback ?? undefined,
+        againstFeedback: row.against_feedback ?? undefined,
+        errorMessage: row.error_message ?? undefined,
+        createdAt: row.created_at.toISOString(),
+        updatedAt: row.updated_at.toISOString(),
+    };
+}
+
+function toFinalDebateScoreResponse(
+    row: DebateFinalScoreRow,
+): FinalDebateScoreResponse {
+    return {
+        debateId: row.debate_id,
+        aiForScore: row.ai_for_score,
+        aiAgainstScore: row.ai_against_score,
+        audienceForScore: row.audience_for_score,
+        audienceAgainstScore: row.audience_against_score,
+        finalForScore: row.final_for_score,
+        finalAgainstScore: row.final_against_score,
+        winnerSide: row.winner_side,
+        createdAt: row.created_at.toISOString(),
+        updatedAt: row.updated_at.toISOString(),
+    };
+}
+
+function countSide(
+    counts: Array<{ side: string; votes: number }>,
+    side: 'FOR' | 'AGAINST',
+): number {
+    return counts.find((count) => count.side === side)?.votes ?? 0;
+}
+
+function percentageScore(votes: number, totalVotes: number): number {
+    if (totalVotes === 0) return 0;
+    return Math.round((votes / totalVotes) * 100);
+}
+
+function weightedScore(aiScore: number, audienceScore: number): number {
+    return Math.round(aiScore * 0.5 + audienceScore * 0.5);
+}
+
+function winnerSide(
+    finalForScore: number,
+    finalAgainstScore: number,
+): FinalScoreWinnerSide {
+    if (finalForScore > finalAgainstScore) return 'FOR';
+    if (finalAgainstScore > finalForScore) return 'AGAINST';
+    return 'DRAW';
 }

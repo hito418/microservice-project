@@ -8,6 +8,20 @@
       "when": 1780924392994,
       "tag": "0000_great_misty_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782110000000,
+      "tag": "0001_store_ai_analysis_results",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782119277122,
+      "tag": "0002_furry_gamora",
+      "breakpoints": true
     }
   ]
 }

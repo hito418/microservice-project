@@ -1,11 +1,21 @@
 import {
+    type AiAnalysisResultResponse,
     type AudienceVoteSummaryRequest,
     type AudienceVoteSummaryResponse,
     audienceVoteSummarySchema,
+    type ComputeFinalDebateScoreRequest,
+    computeFinalDebateScoreSchema,
     type CreateSpectatorVoteRequest,
     createSpectatorVoteSchema,
     type DebateResponse,
+    type FinalDebateScoreResponse,
+    type GetAiAnalysisResultRequest,
+    getAiAnalysisResultSchema,
+    type GetFinalDebateScoreRequest,
+    getFinalDebateScoreSchema,
     ScoringServiceControllerMethods,
+    type StoreAiAnalysisResultRequest,
+    storeAiAnalysisResultSchema,
     type SpectatorVoteResponse,
     type UpsertDebateRequest,
     upsertDebateSchema,
@@ -39,6 +49,34 @@ export class ScoringController implements ScoringServiceController {
         request: AudienceVoteSummaryRequest,
     ): Promise<AudienceVoteSummaryResponse> {
         return this.spectatorVotes.getSummary(request);
+    }
+
+    storeAiAnalysisResult(
+        @Payload(new ZodRpcValidationPipe(storeAiAnalysisResultSchema))
+        request: StoreAiAnalysisResultRequest,
+    ): Promise<AiAnalysisResultResponse> {
+        return this.scoringService.storeAiAnalysisResult(request);
+    }
+
+    getAiAnalysisResult(
+        @Payload(new ZodRpcValidationPipe(getAiAnalysisResultSchema))
+        request: GetAiAnalysisResultRequest,
+    ): Promise<AiAnalysisResultResponse> {
+        return this.scoringService.getAiAnalysisResult(request);
+    }
+
+    computeFinalDebateScore(
+        @Payload(new ZodRpcValidationPipe(computeFinalDebateScoreSchema))
+        request: ComputeFinalDebateScoreRequest,
+    ): Promise<FinalDebateScoreResponse> {
+        return this.scoringService.computeFinalDebateScore(request);
+    }
+
+    getFinalDebateScore(
+        @Payload(new ZodRpcValidationPipe(getFinalDebateScoreSchema))
+        request: GetFinalDebateScoreRequest,
+    ): Promise<FinalDebateScoreResponse> {
+        return this.scoringService.getFinalDebateScore(request);
     }
 
     upsertDebate(
