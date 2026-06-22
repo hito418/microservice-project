@@ -1,9 +1,15 @@
-import { pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+
+export const questions = pgTable('questions', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    content: text('content').notNull(),
+});
 
 export const rooms = pgTable('rooms', {
     id: uuid('id').primaryKey().defaultRandom(),
     debateId: varchar('debate_id', { length: 255 }).notNull(),
     state: varchar('state', { length: 32 }).notNull().default('PREPARATION'),
+    questionId: uuid('question_id').references(() => questions.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
