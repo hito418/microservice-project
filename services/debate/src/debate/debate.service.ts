@@ -1,7 +1,22 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    Inject,
+    Injectable,
+    Logger,
+    NotFoundException,
+    type OnApplicationShutdown,
+} from '@nestjs/common';
 import type { MessageResponse, ParticipantInfo, ReplayResponse, RoomResponse, TransitionRecord } from '@contracts/debate';
 import { PARTICIPANT_SIDES } from '@contracts/debate';
-import type { MessageRow, ParticipantRow, RoomRow } from '../db/database.types';
+import { Queue } from 'bullmq';
+import {
+    FINALIZATION_DELAY_MS,
+    QUEUE_NAMES,
+    redisConnectionFromEnv,
+    type FinalizationJob,
+    type ReplayAnalysisJob,
+} from '@repo/queue';
+import type { MessageRow, ParticipantRow, RoomRow, RoomTransitionRow } from '../db/database.types';
 import { DebateState, isValidTransition } from './debate-state';
 import { RoomRepository } from './room.repository';
 
@@ -9,8 +24,18 @@ const PREP_DURATION_MS = 60_000;
 const RUNNING_DURATION_MS = 300_000;
 
 @Injectable()
-export class DebateService {
+export class DebateService implements OnApplicationShutdown {
     private readonly logger = new Logger(DebateService.name);
+
+    private readonly replayQueue = new Queue<ReplayAnalysisJob>(QUEUE_NAMES.REPLAY_ANALYSIS, {
+        connection: redisConnectionFromEnv(),
+    });
+    private readonly finalizationQueue = new Queue<FinalizationJob>(QUEUE_NAMES.FINALIZATION, {
+        connection: redisConnectionFromEnv(),
+    });
+
+    private readonly prepTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    private readonly debateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     constructor(@Inject(RoomRepository) private readonly repo: RoomRepository) {}
 
@@ -35,6 +60,21 @@ export class DebateService {
         }
 
         const updated = await this.repo.transitionState(roomId, from, to);
+
+        if (to === DebateState.RUNNING) {
+            this.scheduleDebateTimer(roomId, updated.debate_id);
+        }
+
+        if (to === DebateState.VOTING) {
+            this.clearDebateTimer(roomId);
+            await this.enqueueReplayJobs(roomId, updated.debate_id);
+        }
+
+        if (to === DebateState.CLOSED) {
+            this.clearPrepTimer(roomId);
+            this.clearDebateTimer(roomId);
+        }
+
         return this.buildResponse(updated);
     }
 
@@ -68,27 +108,27 @@ export class DebateService {
                 await this.repo.setQuestion(roomId, question.id);
                 room.question_id = question.id;
             }
-            this.schedulePrepTimer(roomId);
+            this.schedulePrepTimer(roomId, room.debate_id);
         }
 
         return this.buildResponse(room, participants);
     }
 
-    private schedulePrepTimer(roomId: string): void {
-        this.logger.log(`Room ${roomId}: prep timer started (${PREP_DURATION_MS / 1000}s)`);
-        setTimeout(() => {
-            this.advanceFromPrep(roomId).catch((err: unknown) =>
-                this.logger.error(`Room ${roomId}: prep timer failed`, err),
-            );
-        }, PREP_DURATION_MS);
-    }
+    async sendMessage(roomId: string, userId: string, content: string): Promise<MessageResponse> {
+        const room = await this.requireRoom(roomId);
 
-    private async advanceFromPrep(roomId: string): Promise<void> {
-        const room = await this.repo.findById(roomId);
-        if (!room || room.state !== DebateState.PREPARATION) return;
-        await this.repo.transitionState(roomId, DebateState.PREPARATION, DebateState.RUNNING);
-        this.logger.log(`Room ${roomId}: PREPARATION → RUNNING`);
-        this.scheduleDebateTimer(roomId);
+        if (room.state !== DebateState.RUNNING) {
+            throw new BadRequestException(`Cannot send message in room state ${room.state}`);
+        }
+
+        const participants = await this.repo.getParticipants(roomId);
+        const participant = participants.find((p) => p.user_id === userId);
+        if (!participant) {
+            throw new BadRequestException('User is not a participant in this room');
+        }
+
+        const msg = await this.repo.saveMessage(roomId, userId, content);
+        return toMessageResponse(msg, participant.side);
     }
 
     async getReplay(roomId: string): Promise<ReplayResponse> {
@@ -111,45 +151,59 @@ export class DebateService {
             question: question?.content ?? '',
             participants: participants.map(toParticipantInfo),
             messages: messages.map((m) => toMessageResponse(m, sideByUser.get(m.user_id) ?? '')),
-            transitions: transitions.map((t): TransitionRecord => ({
-                from: t.from_state,
-                to: t.to_state,
-                at: t.transitioned_at.toISOString(),
-            })),
+            transitions: transitions.map(toTransitionRecord),
         };
     }
 
-    async sendMessage(roomId: string, userId: string, content: string): Promise<MessageResponse> {
-        const room = await this.requireRoom(roomId);
-
-        if (room.state !== DebateState.RUNNING) {
-            throw new BadRequestException(`Cannot send message in room state ${room.state}`);
-        }
-
-        const participants = await this.repo.getParticipants(roomId);
-        const participant = participants.find((p) => p.user_id === userId);
-        if (!participant) {
-            throw new BadRequestException('User is not a participant in this room');
-        }
-
-        const msg = await this.repo.saveMessage(roomId, userId, content);
-        return toMessageResponse(msg, participant.side);
+    async onApplicationShutdown(): Promise<void> {
+        for (const t of this.prepTimers.values()) clearTimeout(t);
+        for (const t of this.debateTimers.values()) clearTimeout(t);
+        await Promise.all([this.replayQueue.close(), this.finalizationQueue.close()]);
     }
 
-    private scheduleDebateTimer(roomId: string): void {
-        this.logger.log(`Room ${roomId}: debate timer started (${RUNNING_DURATION_MS / 1000}s)`);
-        setTimeout(() => {
-            this.advanceFromRunning(roomId).catch((err: unknown) =>
-                this.logger.error(`Room ${roomId}: debate timer failed`, err),
+    private schedulePrepTimer(roomId: string, debateId: string): void {
+        const timer = setTimeout(() => {
+            this.prepTimers.delete(roomId);
+            this.transition(roomId, DebateState.RUNNING).catch((err: unknown) =>
+                this.logger.error(`Room ${roomId}: prep timer transition failed`, err),
+            );
+        }, PREP_DURATION_MS);
+        this.prepTimers.set(roomId, timer);
+        this.logger.log(`Room ${roomId} (debate ${debateId}): prep timer started`);
+    }
+
+    private scheduleDebateTimer(roomId: string, debateId: string): void {
+        const timer = setTimeout(() => {
+            this.debateTimers.delete(roomId);
+            this.transition(roomId, DebateState.VOTING).catch((err: unknown) =>
+                this.logger.error(`Room ${roomId}: debate timer transition failed`, err),
             );
         }, RUNNING_DURATION_MS);
+        this.debateTimers.set(roomId, timer);
+        this.logger.log(`Room ${roomId} (debate ${debateId}): debate timer started`);
     }
 
-    private async advanceFromRunning(roomId: string): Promise<void> {
-        const room = await this.repo.findById(roomId);
-        if (!room || room.state !== DebateState.RUNNING) return;
-        await this.repo.transitionState(roomId, DebateState.RUNNING, DebateState.VOTING);
-        this.logger.log(`Room ${roomId}: RUNNING → VOTING`);
+    private clearPrepTimer(roomId: string): void {
+        const t = this.prepTimers.get(roomId);
+        if (t) { clearTimeout(t); this.prepTimers.delete(roomId); }
+    }
+
+    private clearDebateTimer(roomId: string): void {
+        const t = this.debateTimers.get(roomId);
+        if (t) { clearTimeout(t); this.debateTimers.delete(roomId); }
+    }
+
+    private async enqueueReplayJobs(roomId: string, debateId: string): Promise<void> {
+        const now = Date.now();
+        await Promise.all([
+            this.replayQueue.add(QUEUE_NAMES.REPLAY_ANALYSIS, { debateId, roomId, enqueuedAt: now }),
+            this.finalizationQueue.add(
+                QUEUE_NAMES.FINALIZATION,
+                { debateId, roomId, closedAt: now },
+                { delay: FINALIZATION_DELAY_MS },
+            ),
+        ]);
+        this.logger.log(`Room ${roomId} (debate ${debateId}): enqueued replay + finalization jobs`);
     }
 
     private async buildResponse(room: RoomRow, participants?: ParticipantRow[]): Promise<RoomResponse> {
@@ -189,4 +243,8 @@ function toMessageResponse(m: MessageRow, side: string): MessageResponse {
         content: m.content,
         sentAt: m.sent_at.toISOString(),
     };
+}
+
+function toTransitionRecord(t: RoomTransitionRow): TransitionRecord {
+    return { from: t.from_state, to: t.to_state, at: t.transitioned_at.toISOString() };
 }

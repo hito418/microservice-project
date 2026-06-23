@@ -24,6 +24,8 @@
         "@nestjs/core": "catalog:",
         "@nestjs/microservices": "catalog:",
         "@repo/common": "workspace:*",
+        "@repo/queue": "workspace:*",
+        "bullmq": "^5.34.0",
         "drizzle-orm": "catalog:",
         "kysely": "catalog:",
         "pg": "catalog:",
