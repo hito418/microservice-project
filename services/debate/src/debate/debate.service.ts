@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { MessageResponse, ParticipantInfo, RoomResponse } from '@contracts/debate';
+import type { MessageResponse, ParticipantInfo, ReplayResponse, RoomResponse, TransitionRecord } from '@contracts/debate';
 import { PARTICIPANT_SIDES } from '@contracts/debate';
 import type { MessageRow, ParticipantRow, RoomRow } from '../db/database.types';
 import { DebateState, isValidTransition } from './debate-state';
@@ -89,6 +89,34 @@ export class DebateService {
         await this.repo.transitionState(roomId, DebateState.PREPARATION, DebateState.RUNNING);
         this.logger.log(`Room ${roomId}: PREPARATION → RUNNING`);
         this.scheduleDebateTimer(roomId);
+    }
+
+    async getReplay(roomId: string): Promise<ReplayResponse> {
+        const room = await this.requireRoom(roomId);
+        const [participants, messages, transitions] = await Promise.all([
+            this.repo.getParticipants(roomId),
+            this.repo.getMessages(roomId),
+            this.repo.getTransitions(roomId),
+        ]);
+
+        const sideByUser = new Map(participants.map((p) => [p.user_id, p.side]));
+        const question = room.question_id
+            ? await this.repo.getQuestionById(room.question_id)
+            : undefined;
+
+        return {
+            roomId: room.id,
+            debateId: room.debate_id,
+            state: room.state,
+            question: question?.content ?? '',
+            participants: participants.map(toParticipantInfo),
+            messages: messages.map((m) => toMessageResponse(m, sideByUser.get(m.user_id) ?? '')),
+            transitions: transitions.map((t): TransitionRecord => ({
+                from: t.from_state,
+                to: t.to_state,
+                at: t.transitioned_at.toISOString(),
+            })),
+        };
     }
 
     async sendMessage(roomId: string, userId: string, content: string): Promise<MessageResponse> {
