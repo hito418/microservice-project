@@ -7,7 +7,7 @@ export class ConfigService {
         return process.env.DEBATE_GRPC_HOST ?? '127.0.0.1';
     }
     get grpcPort(): number {
-        return parsePort('DEBATE_GRPC_PORT', 50053);
+        return parsePort('DEBATE_GRPC_PORT', 50055);
     }
 
     get dbHost(): string {

@@ -14,10 +14,12 @@ import { AuthUserGuard } from "./auth/auth-user.guard";
 import { ConfigModule } from "./config/config.module";
 import { ConfigService } from "./config/config.service";
 import { GatewayController } from "./gateway.controller";
+import { RealtimeModule } from "./realtime/realtime.module";
 
 @Module({
     imports: [
         ConfigModule,
+        RealtimeModule,
         JwtModule.register({}),
         ClientsModule.registerAsync([
             {

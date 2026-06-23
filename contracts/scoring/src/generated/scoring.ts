@@ -25,6 +25,93 @@ export interface SpectatorVoteResponse {
   createdAt: string;
 }
 
+export interface AudienceVoteSummaryRequest {
+  debateId: string;
+}
+
+export interface AudienceVoteSummaryResponse {
+  debateId: string;
+  totalVotes: number;
+  forVotes: number;
+  againstVotes: number;
+  forScore: number;
+  againstScore: number;
+}
+
+export interface StoreAiAnalysisResultRequest {
+  debateId: string;
+  /** One of: COMPLETED, FAILED */
+  status: string;
+  summary?: string | undefined;
+  forScore?: number | undefined;
+  againstScore?: number | undefined;
+  forFeedback?: string | undefined;
+  againstFeedback?: string | undefined;
+  errorMessage?: string | undefined;
+}
+
+export interface GetAiAnalysisResultRequest {
+  debateId: string;
+}
+
+export interface AiAnalysisResultResponse {
+  debateId: string;
+  status: string;
+  summary?: string | undefined;
+  forScore?: number | undefined;
+  againstScore?: number | undefined;
+  forFeedback?: string | undefined;
+  againstFeedback?: string | undefined;
+  errorMessage?:
+    | string
+    | undefined;
+  /** RFC 3339 / ISO 8601 */
+  createdAt: string;
+  /** RFC 3339 / ISO 8601 */
+  updatedAt: string;
+}
+
+export interface ComputeFinalDebateScoreRequest {
+  debateId: string;
+}
+
+export interface GetFinalDebateScoreRequest {
+  debateId: string;
+}
+
+export interface FinalDebateScoreResponse {
+  debateId: string;
+  aiForScore: number;
+  aiAgainstScore: number;
+  audienceForScore: number;
+  audienceAgainstScore: number;
+  finalForScore: number;
+  finalAgainstScore: number;
+  /** One of: FOR, AGAINST, DRAW */
+  winnerSide: string;
+  /** RFC 3339 / ISO 8601 */
+  createdAt: string;
+  /** RFC 3339 / ISO 8601 */
+  updatedAt: string;
+}
+
+export interface GetRandomRecentDebateForVotingRequest {
+  maxAgeMinutes?: number | undefined;
+  candidatePoolSize?: number | undefined;
+}
+
+export interface RandomRecentDebateForVotingResponse {
+  debateId: string;
+  status: string;
+  voteCount: number;
+  /**
+   * RFC 3339 / ISO 8601.
+   * Temporary approximation based on debates.updated_at until debate lifecycle
+   * exposes a dedicated voting_started_at / finished_at timestamp.
+   */
+  referenceTime: string;
+}
+
 export interface UpsertDebateRequest {
   debateId: string;
   /** One of: PENDING, RUNNING, VOTING, CLOSED */
@@ -41,6 +128,21 @@ export const SCORING_V1_PACKAGE_NAME = "scoring.v1";
 export interface ScoringServiceClient {
   createSpectatorVote(request: CreateSpectatorVoteRequest, ...rest: any): Observable<SpectatorVoteResponse>;
 
+  getAudienceVoteSummary(request: AudienceVoteSummaryRequest, ...rest: any): Observable<AudienceVoteSummaryResponse>;
+
+  storeAiAnalysisResult(request: StoreAiAnalysisResultRequest, ...rest: any): Observable<AiAnalysisResultResponse>;
+
+  getAiAnalysisResult(request: GetAiAnalysisResultRequest, ...rest: any): Observable<AiAnalysisResultResponse>;
+
+  computeFinalDebateScore(request: ComputeFinalDebateScoreRequest, ...rest: any): Observable<FinalDebateScoreResponse>;
+
+  getFinalDebateScore(request: GetFinalDebateScoreRequest, ...rest: any): Observable<FinalDebateScoreResponse>;
+
+  getRandomRecentDebateForVoting(
+    request: GetRandomRecentDebateForVotingRequest,
+    ...rest: any
+  ): Observable<RandomRecentDebateForVotingResponse>;
+
   upsertDebate(request: UpsertDebateRequest, ...rest: any): Observable<DebateResponse>;
 }
 
@@ -50,6 +152,39 @@ export interface ScoringServiceController {
     ...rest: any
   ): Promise<SpectatorVoteResponse> | Observable<SpectatorVoteResponse> | SpectatorVoteResponse;
 
+  getAudienceVoteSummary(
+    request: AudienceVoteSummaryRequest,
+    ...rest: any
+  ): Promise<AudienceVoteSummaryResponse> | Observable<AudienceVoteSummaryResponse> | AudienceVoteSummaryResponse;
+
+  storeAiAnalysisResult(
+    request: StoreAiAnalysisResultRequest,
+    ...rest: any
+  ): Promise<AiAnalysisResultResponse> | Observable<AiAnalysisResultResponse> | AiAnalysisResultResponse;
+
+  getAiAnalysisResult(
+    request: GetAiAnalysisResultRequest,
+    ...rest: any
+  ): Promise<AiAnalysisResultResponse> | Observable<AiAnalysisResultResponse> | AiAnalysisResultResponse;
+
+  computeFinalDebateScore(
+    request: ComputeFinalDebateScoreRequest,
+    ...rest: any
+  ): Promise<FinalDebateScoreResponse> | Observable<FinalDebateScoreResponse> | FinalDebateScoreResponse;
+
+  getFinalDebateScore(
+    request: GetFinalDebateScoreRequest,
+    ...rest: any
+  ): Promise<FinalDebateScoreResponse> | Observable<FinalDebateScoreResponse> | FinalDebateScoreResponse;
+
+  getRandomRecentDebateForVoting(
+    request: GetRandomRecentDebateForVotingRequest,
+    ...rest: any
+  ):
+    | Promise<RandomRecentDebateForVotingResponse>
+    | Observable<RandomRecentDebateForVotingResponse>
+    | RandomRecentDebateForVotingResponse;
+
   upsertDebate(
     request: UpsertDebateRequest,
     ...rest: any
@@ -58,7 +193,16 @@ export interface ScoringServiceController {
 
 export function ScoringServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createSpectatorVote", "upsertDebate"];
+    const grpcMethods: string[] = [
+      "createSpectatorVote",
+      "getAudienceVoteSummary",
+      "storeAiAnalysisResult",
+      "getAiAnalysisResult",
+      "computeFinalDebateScore",
+      "getFinalDebateScore",
+      "getRandomRecentDebateForVoting",
+      "upsertDebate",
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("ScoringService", method)(constructor.prototype[method], method, descriptor);

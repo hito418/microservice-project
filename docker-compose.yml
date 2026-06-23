@@ -10,6 +10,8 @@ services:
             - SCORING_GRPC_PORT=50052
             - AUTH_GRPC_HOST=auth
             - AUTH_GRPC_PORT=50051
+            - PROFILE_GRPC_HOST=profile
+            - PROFILE_GRPC_PORT=50053
             - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
             - JWT_PUBLIC_KEY_PATH=/app/.secrets/public.pem
             - JWT_ALGORITHM=${JWT_ALGORITHM:-ES256}
@@ -110,13 +112,58 @@ services:
             interval: 5s
             timeout: 3s
             retries: 5
+    profile:
+        build:
+            context: .
+            dockerfile: services/profile/Dockerfile
+        environment:
+            - PROFILE_GRPC_HOST=0.0.0.0
+            - PROFILE_GRPC_PORT=50053
+            - PROFILE_DB_HOST=profile-db
+            - PROFILE_DB_PORT=5432
+            - PROFILE_DB_USER=profile
+            - PROFILE_DB_PASSWORD=profile
+            - PROFILE_DB_NAME=profile
+        networks:
+            - profile-service
+            - gateway
+        depends_on:
+            profile-db:
+                condition: service_healthy
+        ports:
+            # Bind to localhost only: profile trusts gateway-supplied identity
+            # metadata (x-user-id/x-user-role), so the gRPC port must not be
+            # reachable by arbitrary clients that could bypass the gateway and
+            # spoof a principal. Host loopback stays open for local debugging;
+            # in-cluster traffic uses profile:50053 over the gateway network.
+            - 127.0.0.1:50053:50053
+    profile-db:
+        image: postgres:16-alpine
+        environment:
+            - POSTGRES_USER=profile
+            - POSTGRES_PASSWORD=profile
+            - POSTGRES_DB=profile
+        volumes:
+            - profile-db-data:/var/lib/postgresql/data
+        ports:
+            # Host 5435 → container 5432: avoids clashing with auth-db (5433) and
+            # scoring-db (5434). In-cluster traffic still uses profile-db:5432
+            # over the profile-service network.
+            - 5435:5432
+        networks:
+            - profile-service
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U profile -d profile"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
     debate:
         build:
             context: .
             dockerfile: services/debate/Dockerfile
         environment:
             - DEBATE_GRPC_HOST=0.0.0.0
-            - DEBATE_GRPC_PORT=50053
+            - DEBATE_GRPC_PORT=50055
             - DEBATE_DB_HOST=debate-db
             - DEBATE_DB_PORT=5432
             - DEBATE_DB_USER=debate
@@ -129,7 +176,7 @@ services:
             debate-db:
                 condition: service_healthy
         ports:
-            - 127.0.0.1:50053:50053
+            - 127.0.0.1:50055:50055
     debate-db:
         image: postgres:16-alpine
         environment:
@@ -139,8 +186,9 @@ services:
         volumes:
             - debate-db-data:/var/lib/postgresql/data
         ports:
-            # Host 5435 → container 5432: avoids clashing with auth-db (5433) and scoring-db (5434).
-            - 5435:5432
+            # Host 5436 → container 5432: avoids clashing with auth-db (5433),
+            # scoring-db (5434) and profile-db (5435).
+            - 5436:5432
         networks:
             - debate-service
         healthcheck:
@@ -165,10 +213,12 @@ volumes:
     redis-data:
     auth-db-data:
     scoring-db-data:
+    profile-db-data:
     debate-db-data:
 
 networks:
     auth-service:
     scoring-service:
+    profile-service:
     debate-service:
     gateway:
