@@ -157,6 +157,45 @@ services:
             interval: 5s
             timeout: 3s
             retries: 5
+    debate:
+        build:
+            context: .
+            dockerfile: services/debate/Dockerfile
+        environment:
+            - DEBATE_GRPC_HOST=0.0.0.0
+            - DEBATE_GRPC_PORT=50055
+            - DEBATE_DB_HOST=debate-db
+            - DEBATE_DB_PORT=5432
+            - DEBATE_DB_USER=debate
+            - DEBATE_DB_PASSWORD=debate
+            - DEBATE_DB_NAME=debate
+        networks:
+            - debate-service
+            - gateway
+        depends_on:
+            debate-db:
+                condition: service_healthy
+        ports:
+            - 127.0.0.1:50055:50055
+    debate-db:
+        image: postgres:16-alpine
+        environment:
+            - POSTGRES_USER=debate
+            - POSTGRES_PASSWORD=debate
+            - POSTGRES_DB=debate
+        volumes:
+            - debate-db-data:/var/lib/postgresql/data
+        ports:
+            # Host 5436 → container 5432: avoids clashing with auth-db (5433),
+            # scoring-db (5434) and profile-db (5435).
+            - 5436:5432
+        networks:
+            - debate-service
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U debate -d debate"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
     redis:
         image: redis:7-alpine
         command: ["redis-server", "--appendonly", "yes"]
@@ -175,9 +214,11 @@ volumes:
     auth-db-data:
     scoring-db-data:
     profile-db-data:
+    debate-db-data:
 
 networks:
     auth-service:
     scoring-service:
     profile-service:
+    debate-service:
     gateway:
