@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { GrpcMethod, Payload } from '@nestjs/microservices';
-import type { CreateRoomRequest, GetRoomRequest, JoinRoomRequest, RoomResponse, TransitionRequest } from '@contracts/debate';
-import { createRoomSchema, getRoomSchema, joinRoomSchema, transitionSchema } from '@contracts/debate';
+import type { CreateRoomRequest, GetRoomRequest, JoinRoomRequest, MessageResponse, RoomResponse, SendMessageRequest, TransitionRequest } from '@contracts/debate';
+import { createRoomSchema, getRoomSchema, joinRoomSchema, sendMessageSchema, transitionSchema } from '@contracts/debate';
 import { GrpcUser, type GrpcPrincipal } from '@repo/common/grpc';
 import { ZodRpcValidationPipe } from '@repo/common/pipes';
 import { DebateService } from './debate.service';
@@ -42,5 +42,14 @@ export class DebateController {
         @GrpcUser() user: GrpcPrincipal,
     ): Promise<RoomResponse> {
         return this.svc.joinRoom(request.roomId, user.id);
+    }
+
+    @GrpcMethod('DebateService', 'sendMessage')
+    sendMessage(
+        @Payload(new ZodRpcValidationPipe(sendMessageSchema))
+        request: SendMessageRequest,
+        @GrpcUser() user: GrpcPrincipal,
+    ): Promise<MessageResponse> {
+        return this.svc.sendMessage(request.roomId, user.id, request.content);
     }
 }
