@@ -1,0 +1,11 @@
+{
+    "extends": "@repo/ts-config/node.json",
+    "compilerOptions": {
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "incremental": false
+    },
+    "include": ["src/**/*"]
+}

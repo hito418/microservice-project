@@ -34,11 +34,16 @@ services:
             - SCORING_DB_USER=scoring
             - SCORING_DB_PASSWORD=scoring
             - SCORING_DB_NAME=scoring
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
         networks:
             - scoring-service
             - gateway
+            - queue
         depends_on:
             scoring-db:
+                condition: service_healthy
+            redis:
                 condition: service_healthy
         ports:
             # Bind to localhost only: scoring trusts gateway-supplied identity
@@ -164,11 +169,35 @@ services:
             - redis-data:/data
         ports:
             - 6379:6379
+        networks:
+            - queue
         healthcheck:
             test: ["CMD", "redis-cli", "ping"]
             interval: 5s
             timeout: 3s
             retries: 5
+    finalization:
+        build:
+            context: .
+            dockerfile: runners/finalization/Dockerfile
+        environment:
+            # No inbound listener — the runner consumes the debate.finalize queue
+            # from Redis and calls scoring over gRPC to compute final scores.
+            - SCORING_GRPC_HOST=scoring
+            - SCORING_GRPC_PORT=50052
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - WORKER_CONCURRENCY=${FINALIZATION_CONCURRENCY:-1}
+            - LOG_LEVEL=verbose
+        networks:
+            # gateway → reach scoring:50052; queue → reach redis:6379
+            - gateway
+            - queue
+        depends_on:
+            redis:
+                condition: service_healthy
+            scoring:
+                condition: service_started
 
 volumes:
     redis-data:
@@ -181,3 +210,4 @@ networks:
     scoring-service:
     profile-service:
     gateway:
+    queue:

@@ -23,6 +23,7 @@ import type {
     DebateFinalScoreRow,
     DebateRow,
 } from '../db/database.types';
+import { DebateJobsProducer } from '../jobs/debate-jobs.producer';
 import { ScoringRepository } from './scoring.repository';
 
 const MAX_RANDOM_DEBATE_AGE_MINUTES = 1440;
@@ -32,15 +33,29 @@ const MILLIS_PER_MINUTE = 60_000;
 
 @Injectable()
 export class ScoringService {
-    constructor(private readonly scoringRepository: ScoringRepository) {}
+    constructor(
+        private readonly scoringRepository: ScoringRepository,
+        private readonly debateJobs: DebateJobsProducer,
+    ) {}
 
     async upsertDebate(
         request: UpsertDebateRequest,
     ): Promise<DebateResponse> {
+        const previous = await this.scoringRepository.findDebateById(
+            request.debateId,
+        );
         const debate = await this.scoringRepository.upsertDebate({
             debateId: request.debateId,
             status: request.status,
         });
+
+        // Voting just opened on this debate: schedule its delayed finalization.
+        // The producer's jobId dedup is the real guard; this check just avoids
+        // redundant enqueue calls on repeated upserts.
+        if (request.status === 'VOTING' && previous?.status !== 'VOTING') {
+            await this.debateJobs.enqueueFinalization(request.debateId, '');
+        }
+
         return toResponse(debate);
     }
 

@@ -15,6 +15,7 @@ import type {
     DebateFinalScoreRow,
     DebateRow,
 } from '../db/database.types';
+import { DebateJobsProducer } from '../jobs/debate-jobs.producer';
 import {
     ScoringRepository,
     type RecentDebateForVotingCandidate,
@@ -38,6 +39,20 @@ function makeRepoMock(): ScoringRepository {
         findFinalDebateScoreByDebateId: vi.fn(),
         findRecentDebatesForVoting: vi.fn(),
     } as unknown as ScoringRepository;
+}
+
+function makeProducerMock(): DebateJobsProducer {
+    return {
+        enqueueFinalization: vi.fn().mockResolvedValue(undefined),
+        onModuleDestroy: vi.fn().mockResolvedValue(undefined),
+    } as unknown as DebateJobsProducer;
+}
+
+function makeService(
+    repo: ScoringRepository,
+    producer: DebateJobsProducer = makeProducerMock(),
+): ScoringService {
+    return new ScoringService(repo, producer);
 }
 
 function debateRow(overrides: Partial<DebateRow> = {}): DebateRow {
@@ -116,7 +131,7 @@ async function rpcErrorOf(
 describe('ScoringService AI analysis results', () => {
     it('stores a COMPLETED result successfully', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.upsertAiAnalysisResult).mockResolvedValue(aiResultRow());
 
@@ -156,7 +171,7 @@ describe('ScoringService AI analysis results', () => {
 
     it('gets a stored COMPLETED result', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(aiResultRow());
 
         const result = await service.getAiAnalysisResult({ debateId: 'debate-1' });
@@ -168,7 +183,7 @@ describe('ScoringService AI analysis results', () => {
 
     it('stores a FAILED result with an errorMessage', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.upsertAiAnalysisResult).mockResolvedValue(
             aiResultRow({
@@ -199,7 +214,7 @@ describe('ScoringService AI analysis results', () => {
 
     it('rejects an unknown debate when storing a result', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(undefined);
 
         const error = await rpcErrorOf(() =>
@@ -216,7 +231,7 @@ describe('ScoringService AI analysis results', () => {
 
     it('returns NOT_FOUND when no analysis result exists', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(undefined);
 
         const error = await rpcErrorOf(() =>
@@ -230,7 +245,7 @@ describe('ScoringService AI analysis results', () => {
 describe('ScoringService final debate scores', () => {
     it('computes a final score with 50/50 weighting', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 80, against_score: 20 }),
@@ -271,7 +286,7 @@ describe('ScoringService final debate scores', () => {
 
     it('rounds .5 final scores correctly', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 67, against_score: 33 }),
@@ -304,7 +319,7 @@ describe('ScoringService final debate scores', () => {
 
     it('computes DRAW winner', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 50, against_score: 50 }),
@@ -334,7 +349,7 @@ describe('ScoringService final debate scores', () => {
 
     it('computes AGAINST winner', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 20, against_score: 80 }),
@@ -363,7 +378,7 @@ describe('ScoringService final debate scores', () => {
 
     it('computes with no audience votes as 0/0 audience scores', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: 80, against_score: 20 }),
@@ -392,7 +407,7 @@ describe('ScoringService final debate scores', () => {
 
     it('rejects an unknown debate', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(undefined);
 
         const error = await rpcErrorOf(() =>
@@ -405,7 +420,7 @@ describe('ScoringService final debate scores', () => {
 
     it('rejects a missing AI analysis result', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(undefined);
 
@@ -419,7 +434,7 @@ describe('ScoringService final debate scores', () => {
 
     it('rejects a FAILED AI analysis result', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({
@@ -439,7 +454,7 @@ describe('ScoringService final debate scores', () => {
 
     it('rejects an incoherent COMPLETED AI analysis result', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findDebateById).mockResolvedValue(debateRow());
         vi.mocked(repo.findAiAnalysisResultByDebateId).mockResolvedValue(
             aiResultRow({ for_score: null }),
@@ -455,7 +470,7 @@ describe('ScoringService final debate scores', () => {
 
     it('gets a stored final score', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findFinalDebateScoreByDebateId).mockResolvedValue(
             finalScoreRow(),
         );
@@ -469,7 +484,7 @@ describe('ScoringService final debate scores', () => {
 
     it('returns NOT_FOUND when no final score exists', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findFinalDebateScoreByDebateId).mockResolvedValue(undefined);
 
         const error = await rpcErrorOf(() =>
@@ -483,7 +498,7 @@ describe('ScoringService final debate scores', () => {
 describe('ScoringService random recent debates for voting', () => {
     it('returns a recent votable debate candidate', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([
             recentDebateCandidate(),
         ]);
@@ -500,7 +515,7 @@ describe('ScoringService random recent debates for voting', () => {
 
     it('applies default maxAgeMinutes and candidatePoolSize', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         const now = new Date('2026-01-01T00:20:00Z').getTime();
         vi.spyOn(Date, 'now').mockReturnValue(now);
         vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([
@@ -518,7 +533,7 @@ describe('ScoringService random recent debates for voting', () => {
 
     it('passes custom maxAgeMinutes and candidatePoolSize', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         const now = new Date('2026-01-01T00:20:00Z').getTime();
         vi.spyOn(Date, 'now').mockReturnValue(now);
         vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([
@@ -539,7 +554,7 @@ describe('ScoringService random recent debates for voting', () => {
 
     it('returns NOT_FOUND if no candidate exists', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([]);
 
         const error = await rpcErrorOf(() =>
@@ -551,7 +566,7 @@ describe('ScoringService random recent debates for voting', () => {
 
     it('chooses randomly within the least-voted candidate pool returned by repository', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
         vi.spyOn(Math, 'random').mockReturnValue(0.75);
         vi.mocked(repo.findRecentDebatesForVoting).mockResolvedValue([
             recentDebateCandidate({ debateId: 'debate-1', voteCount: 0 }),
@@ -568,7 +583,7 @@ describe('ScoringService random recent debates for voting', () => {
 
     it('rejects invalid maxAgeMinutes', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
 
         const error = await rpcErrorOf(() =>
             service.getRandomRecentDebateForVoting({ maxAgeMinutes: 0 }),
@@ -580,7 +595,7 @@ describe('ScoringService random recent debates for voting', () => {
 
     it('rejects invalid candidatePoolSize', async () => {
         const repo = makeRepoMock();
-        const service = new ScoringService(repo);
+        const service = makeService(repo);
 
         const error = await rpcErrorOf(() =>
             service.getRandomRecentDebateForVoting({ candidatePoolSize: 101 }),
@@ -1042,5 +1057,68 @@ describe('ScoringRepository recent debate voting candidates', () => {
         expect(captured.orderBy[0]?.[1]).toBe('asc');
         expect(captured.orderBy[1]).toEqual(['debates.id', 'asc']);
         expect(captured.limit).toBe(5);
+    });
+});
+
+describe('ScoringService debate upsert', () => {
+    it('enqueues finalization when a debate transitions into VOTING', async () => {
+        const repo = makeRepoMock();
+        const producer = makeProducerMock();
+        const service = makeService(repo, producer);
+        vi.mocked(repo.findDebateById).mockResolvedValue(
+            debateRow({ status: 'RUNNING' }),
+        );
+        vi.mocked(repo.upsertDebate).mockResolvedValue(
+            debateRow({ status: 'VOTING' }),
+        );
+
+        await service.upsertDebate({ debateId: 'debate-1', status: 'VOTING' });
+
+        expect(producer.enqueueFinalization).toHaveBeenCalledOnce();
+        expect(producer.enqueueFinalization).toHaveBeenCalledWith('debate-1', '');
+    });
+
+    it('enqueues finalization for a brand-new debate created directly in VOTING', async () => {
+        const repo = makeRepoMock();
+        const producer = makeProducerMock();
+        const service = makeService(repo, producer);
+        vi.mocked(repo.findDebateById).mockResolvedValue(undefined);
+        vi.mocked(repo.upsertDebate).mockResolvedValue(
+            debateRow({ status: 'VOTING' }),
+        );
+
+        await service.upsertDebate({ debateId: 'debate-1', status: 'VOTING' });
+
+        expect(producer.enqueueFinalization).toHaveBeenCalledOnce();
+    });
+
+    it('does not enqueue when the debate is already VOTING', async () => {
+        const repo = makeRepoMock();
+        const producer = makeProducerMock();
+        const service = makeService(repo, producer);
+        vi.mocked(repo.findDebateById).mockResolvedValue(
+            debateRow({ status: 'VOTING' }),
+        );
+        vi.mocked(repo.upsertDebate).mockResolvedValue(
+            debateRow({ status: 'VOTING' }),
+        );
+
+        await service.upsertDebate({ debateId: 'debate-1', status: 'VOTING' });
+
+        expect(producer.enqueueFinalization).not.toHaveBeenCalled();
+    });
+
+    it('does not enqueue for a non-VOTING transition', async () => {
+        const repo = makeRepoMock();
+        const producer = makeProducerMock();
+        const service = makeService(repo, producer);
+        vi.mocked(repo.findDebateById).mockResolvedValue(undefined);
+        vi.mocked(repo.upsertDebate).mockResolvedValue(
+            debateRow({ status: 'RUNNING' }),
+        );
+
+        await service.upsertDebate({ debateId: 'debate-1', status: 'RUNNING' });
+
+        expect(producer.enqueueFinalization).not.toHaveBeenCalled();
     });
 });

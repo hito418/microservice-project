@@ -1,5 +1,5 @@
 {
-    "name": "@services/scoring",
+    "name": "@runners/finalization",
     "version": "1.0.0",
     "private": true,
     "main": "dist/main.js",
@@ -12,9 +12,7 @@
         "start": "node dist/main.js",
         "lint": "oxlint",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run",
-        "db:generate": "drizzle-kit generate",
-        "db:migrate": "drizzle-kit migrate"
+        "test": "vitest run"
     },
     "dependencies": {
         "@contracts/scoring": "workspace:*",
@@ -25,10 +23,8 @@
         "@nestjs/microservices": "catalog:",
         "@repo/common": "workspace:*",
         "@repo/queue": "workspace:*",
+        "@repo/runner": "workspace:*",
         "bullmq": "catalog:",
-        "drizzle-orm": "catalog:",
-        "kysely": "catalog:",
-        "pg": "catalog:",
         "reflect-metadata": "catalog:",
         "rxjs": "catalog:"
     },
@@ -37,9 +33,7 @@
         "@repo/oxfmt-config": "workspace:*",
         "@repo/oxlint-config": "workspace:*",
         "@types/node": "^22.0.0",
-        "@types/pg": "^8.11.10",
         "@nestjs/cli": "catalog:",
-        "drizzle-kit": "catalog:",
         "typescript": "catalog:",
         "oxlint": "catalog:",
         "oxfmt": "catalog:",
