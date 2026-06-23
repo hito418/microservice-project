@@ -6,6 +6,7 @@ import { DebateState, isValidTransition } from './debate-state';
 import { RoomRepository } from './room.repository';
 
 const PREP_DURATION_MS = 60_000;
+const RUNNING_DURATION_MS = 300_000;
 
 @Injectable()
 export class DebateService {
@@ -87,6 +88,23 @@ export class DebateService {
         if (!room || room.state !== DebateState.PREPARATION) return;
         await this.repo.transitionState(roomId, DebateState.PREPARATION, DebateState.RUNNING);
         this.logger.log(`Room ${roomId}: PREPARATION → RUNNING`);
+        this.scheduleDebateTimer(roomId);
+    }
+
+    private scheduleDebateTimer(roomId: string): void {
+        this.logger.log(`Room ${roomId}: debate timer started (${RUNNING_DURATION_MS / 1000}s)`);
+        setTimeout(() => {
+            this.advanceFromRunning(roomId).catch((err: unknown) =>
+                this.logger.error(`Room ${roomId}: debate timer failed`, err),
+            );
+        }, RUNNING_DURATION_MS);
+    }
+
+    private async advanceFromRunning(roomId: string): Promise<void> {
+        const room = await this.repo.findById(roomId);
+        if (!room || room.state !== DebateState.RUNNING) return;
+        await this.repo.transitionState(roomId, DebateState.RUNNING, DebateState.VOTING);
+        this.logger.log(`Room ${roomId}: RUNNING → VOTING`);
     }
 
     private async buildResponse(room: RoomRow, participants?: ParticipantRow[]): Promise<RoomResponse> {
