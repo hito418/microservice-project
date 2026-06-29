@@ -32,6 +32,8 @@ type Route =
 const SESSION_KEY = 'ai-debate-session';
 const LAST_DEBATE_ID_KEY = 'ai-debate-last-debate-id';
 const LAST_USER_ID_KEY = 'ai-debate-last-user-id';
+const DEMO_DEBATE_ID = 'demo-debate-1';
+const DEMO_PROFILE_USER_ID = '11111111-1111-1111-1111-111111111111';
 
 export function App() {
     const [locationKey, setLocationKey] = useState(window.location.href);
@@ -227,13 +229,13 @@ function HomePage({
     navigate: (path: string) => void;
 }) {
     const [manualDebateId, setManualDebateId] = useState(
-        readStorage(LAST_DEBATE_ID_KEY),
+        readStorage(LAST_DEBATE_ID_KEY) || DEMO_DEBATE_ID,
     );
     const [manualUserId, setManualUserId] = useState(
-        session?.userId ?? readStorage(LAST_USER_ID_KEY),
+        session?.userId ?? (readStorage(LAST_USER_ID_KEY) || DEMO_PROFILE_USER_ID),
     );
     const [manualResultId, setManualResultId] = useState(
-        readStorage(LAST_DEBATE_ID_KEY),
+        readStorage(LAST_DEBATE_ID_KEY) || DEMO_DEBATE_ID,
     );
     const [launchMessage, setLaunchMessage] = useState<string | null>(null);
 
@@ -269,6 +271,17 @@ function HomePage({
         navigate(`/profile/${encodeURIComponent(nextUserId)}`);
     }
 
+    function useDemoIds() {
+        setManualDebateId(DEMO_DEBATE_ID);
+        setManualResultId(DEMO_DEBATE_ID);
+        setManualUserId(session?.userId ?? DEMO_PROFILE_USER_ID);
+        saveLastDebateId(DEMO_DEBATE_ID);
+        saveLastUserId(session?.userId ?? DEMO_PROFILE_USER_ID);
+        setLaunchMessage(
+            'Demo ids loaded. Run scripts/seed-demo.ps1 first if scoring data is empty.',
+        );
+    }
+
     return (
         <div className="page-grid">
             <section className="hero-panel">
@@ -277,6 +290,10 @@ function HomePage({
                 <p>
                     Run the tomorrow demo from one place: enter known ids, open the
                     room, cast audience votes, inspect scoring, and show rankings.
+                </p>
+                <p>
+                    Matchmaking HTTP is not exposed by this gateway branch, so launch
+                    uses the manual debate id fallback.
                 </p>
                 <div className="cta-grid">
                     <button className="btn btn-primary" onClick={() => openDebate('player')}>
@@ -300,8 +317,13 @@ function HomePage({
                     <button className="btn btn-secondary" onClick={openResults}>
                         View debate results
                     </button>
+                    <button className="btn btn-secondary" onClick={useDemoIds}>
+                        Use demo ids
+                    </button>
                 </div>
-                {launchMessage && <ErrorState message={launchMessage} />}
+                {launchMessage && (
+                    <div className="state state-warning">{launchMessage}</div>
+                )}
             </section>
             <section className="card">
                 <div className="section-title">
@@ -479,7 +501,7 @@ function RandomVotePage({ navigate }: { navigate: (path: string) => void }) {
     const [debate, setDebate] = useState<RandomRecentDebate | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [manualDebateId, setManualDebateId] = useState(
-        readStorage(LAST_DEBATE_ID_KEY),
+        readStorage(LAST_DEBATE_ID_KEY) || DEMO_DEBATE_ID,
     );
 
     async function findDebate() {
@@ -808,7 +830,9 @@ function ResultPage({
                     .filter((item): item is string => item !== null),
             );
             if (results.every((result) => result.status === 'rejected')) {
-                setError('No result data is available for this debate yet.');
+                setError(
+                    'No result data is available for this debate yet. For the local demo, run scripts/seed-demo.ps1 and open demo-debate-1.',
+                );
             }
             setLoading(false);
         }
