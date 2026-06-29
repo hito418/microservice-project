@@ -41,16 +41,20 @@ async function request<T>(
     const text = await response.text();
     const data = text ? safeJson(text) : undefined;
     if (!response.ok) {
-        const message =
-            typeof data === 'object' &&
-            data !== null &&
-            'message' in data &&
-            typeof data.message === 'string'
-                ? data.message
-                : `HTTP ${response.status}`;
+        const message = readApiMessage(data, response.statusText);
         throw new ApiError(message, response.status, data);
     }
     return data as T;
+}
+
+function readApiMessage(data: unknown, fallback: string): string {
+    if (typeof data === 'object' && data !== null && 'message' in data) {
+        const { message } = data as { message?: unknown };
+        if (typeof message === 'string') return message;
+        if (Array.isArray(message)) return message.join(', ');
+    }
+    if (typeof data === 'string' && data.trim()) return data;
+    return fallback || 'Unexpected API error';
 }
 
 function safeJson(text: string): unknown {

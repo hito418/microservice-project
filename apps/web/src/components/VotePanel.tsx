@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../api/client';
 import type { AudienceVoteSummary, Side } from '../api/types';
-import { Badge, ErrorState, LoadingState } from './Status';
+import { Badge, EmptyState, ErrorState, LoadingState, SuccessState } from './Status';
 
 export function VotePanel({ debateId }: { debateId: string }) {
     const [summary, setSummary] = useState<AudienceVoteSummary | null>(null);
@@ -45,39 +45,65 @@ export function VotePanel({ debateId }: { debateId: string }) {
     return (
         <section className="card">
             <div className="section-title">
-                <h2>Voting</h2>
-                <Badge tone="neutral">{debateId}</Badge>
+                <div>
+                    <p className="eyebrow">Audience vote</p>
+                    <h2>Cast a side vote</h2>
+                </div>
+                <div className="title-actions">
+                    <Badge tone="info">{debateId}</Badge>
+                    <button
+                        className="btn btn-ghost"
+                        disabled={loadingSummary}
+                        onClick={() => void refreshSummary()}
+                    >
+                        Refresh
+                    </button>
+                </div>
             </div>
-            <div className="button-row">
+            <div className="vote-actions">
                 <button
-                    className="btn btn-for"
+                    className="vote-card vote-for"
                     disabled={!debateId || submitting !== null}
                     onClick={() => void vote('FOR')}
                 >
-                    {submitting === 'FOR' ? 'Submitting...' : 'Vote FOR'}
+                    <span>Vote FOR</span>
+                    <strong>{submitting === 'FOR' ? 'Submitting...' : 'Support'}</strong>
                 </button>
                 <button
-                    className="btn btn-against"
+                    className="vote-card vote-against"
                     disabled={!debateId || submitting !== null}
                     onClick={() => void vote('AGAINST')}
                 >
-                    {submitting === 'AGAINST' ? 'Submitting...' : 'Vote AGAINST'}
+                    <span>Vote AGAINST</span>
+                    <strong>{submitting === 'AGAINST' ? 'Submitting...' : 'Challenge'}</strong>
                 </button>
             </div>
-            {message && <div className="state state-success">{message}</div>}
+            {message && <SuccessState>{message}</SuccessState>}
             {error && <ErrorState message={error} />}
             {loadingSummary ? (
                 <LoadingState label="Loading vote summary" />
             ) : summary ? (
-                <div className="stats-grid compact">
-                    <Metric label="Total" value={summary.totalVotes} />
-                    <Metric label="FOR" value={`${summary.forVotes} (${summary.forScore})`} />
-                    <Metric
+                <div className="vote-summary">
+                    <Metric label="Total votes" value={summary.totalVotes} />
+                    <VoteBar
+                        label="FOR"
+                        votes={summary.forVotes}
+                        score={summary.forScore}
+                        total={summary.totalVotes}
+                    />
+                    <VoteBar
                         label="AGAINST"
-                        value={`${summary.againstVotes} (${summary.againstScore})`}
+                        votes={summary.againstVotes}
+                        score={summary.againstScore}
+                        total={summary.totalVotes}
                     />
                 </div>
-            ) : null}
+            ) : (
+                <EmptyState>
+                    Vote summary is empty or not exposed yet. Voting still works once
+                    the debate vote endpoint is available.
+                </EmptyState>
+            )}
         </section>
     );
 }
@@ -91,8 +117,39 @@ function Metric({ label, value }: { label: string; value: string | number }) {
     );
 }
 
+function VoteBar({
+    label,
+    votes,
+    score,
+    total,
+}: {
+    label: Side;
+    votes: number;
+    score: number;
+    total: number;
+}) {
+    const percent = total > 0 ? Math.round((votes / total) * 100) : 0;
+    return (
+        <div className="vote-bar">
+            <div>
+                <strong>{label}</strong>
+                <span>
+                    {votes} votes - score {score}
+                </span>
+            </div>
+            <div className="meter" aria-label={`${label} ${percent}%`}>
+                <span
+                    className={label === 'FOR' ? 'meter-for' : 'meter-against'}
+                    style={{ width: `${percent}%` }}
+                />
+            </div>
+            <b>{percent}%</b>
+        </div>
+    );
+}
+
 function readError(err: unknown, fallback: string): string {
-    if (err instanceof ApiError) return `${fallback} ${err.message}`;
+    if (err instanceof ApiError) return `${fallback} HTTP ${err.status}: ${err.message}`;
     if (err instanceof Error) return `${fallback} ${err.message}`;
     return fallback;
 }
