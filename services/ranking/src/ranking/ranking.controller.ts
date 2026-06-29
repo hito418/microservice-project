@@ -1,4 +1,7 @@
 import {
+    type ComputeXpForDebateCloseRequest,
+    type ComputeXpForDebateCloseResponse,
+    computeXpForDebateCloseSchema,
     type ListUserPerformanceHistoryRequest,
     type ListUserPerformanceHistoryResponse,
     listUserPerformanceHistorySchema,
@@ -30,5 +33,12 @@ export class RankingController implements RankingServiceController {
         request: ListUserPerformanceHistoryRequest,
     ): Promise<ListUserPerformanceHistoryResponse> {
         return this.rankingService.listUserPerformanceHistory(request);
+    }
+
+    computeXpForDebateClose(
+        @Payload(new ZodRpcValidationPipe(computeXpForDebateCloseSchema))
+        request: ComputeXpForDebateCloseRequest,
+    ): Promise<ComputeXpForDebateCloseResponse> {
+        return this.rankingService.computeXpForDebateClose(request);
     }
 }

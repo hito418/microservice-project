@@ -17,7 +17,9 @@
         "db:migrate": "drizzle-kit migrate"
     },
     "dependencies": {
+        "@contracts/profile": "workspace:*",
         "@contracts/ranking": "workspace:*",
+        "@contracts/scoring": "workspace:*",
         "@grpc/grpc-js": "catalog:",
         "@grpc/proto-loader": "catalog:",
         "@nestjs/common": "catalog:",

@@ -45,6 +45,19 @@ export interface ListUserPerformanceHistoryResponse {
   total: number;
 }
 
+export interface ComputeXpForDebateCloseRequest {
+  debateId: string;
+  forUserId: string;
+  againstUserId: string;
+}
+
+export interface ComputeXpForDebateCloseResponse {
+  debateId: string;
+  /** One of: FOR, AGAINST, DRAW */
+  winnerSide: string;
+  performances: PerformanceHistoryItem[];
+}
+
 export const RANKING_V1_PACKAGE_NAME = "ranking.v1";
 
 export interface RankingServiceClient {
@@ -54,6 +67,11 @@ export interface RankingServiceClient {
     request: ListUserPerformanceHistoryRequest,
     ...rest: any
   ): Observable<ListUserPerformanceHistoryResponse>;
+
+  computeXpForDebateClose(
+    request: ComputeXpForDebateCloseRequest,
+    ...rest: any
+  ): Observable<ComputeXpForDebateCloseResponse>;
 }
 
 export interface RankingServiceController {
@@ -69,11 +87,23 @@ export interface RankingServiceController {
     | Promise<ListUserPerformanceHistoryResponse>
     | Observable<ListUserPerformanceHistoryResponse>
     | ListUserPerformanceHistoryResponse;
+
+  computeXpForDebateClose(
+    request: ComputeXpForDebateCloseRequest,
+    ...rest: any
+  ):
+    | Promise<ComputeXpForDebateCloseResponse>
+    | Observable<ComputeXpForDebateCloseResponse>
+    | ComputeXpForDebateCloseResponse;
 }
 
 export function RankingServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["recordPerformance", "listUserPerformanceHistory"];
+    const grpcMethods: string[] = [
+      "recordPerformance",
+      "listUserPerformanceHistory",
+      "computeXpForDebateClose",
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("RankingService", method)(constructor.prototype[method], method, descriptor);

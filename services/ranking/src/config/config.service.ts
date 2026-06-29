@@ -29,6 +29,20 @@ export class ConfigService {
         return parseBool('RANKING_SKIP_MIGRATIONS', false);
     }
 
+    get scoringGrpcHost(): string {
+        return process.env.SCORING_GRPC_HOST ?? '127.0.0.1';
+    }
+    get scoringGrpcPort(): number {
+        return parsePort('SCORING_GRPC_PORT', 50052);
+    }
+
+    get profileGrpcHost(): string {
+        return process.env.PROFILE_GRPC_HOST ?? '127.0.0.1';
+    }
+    get profileGrpcPort(): number {
+        return parsePort('PROFILE_GRPC_PORT', 50053);
+    }
+
     get logLevels(): LogLevel[] {
         return resolveLogLevels();
     }

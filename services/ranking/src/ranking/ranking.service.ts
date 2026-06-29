@@ -1,12 +1,24 @@
 import type {
+    ComputeXpForDebateCloseRequest,
+    ComputeXpForDebateCloseResponse,
     ListUserPerformanceHistoryRequest,
     ListUserPerformanceHistoryResponse,
     PerformanceHistoryItem,
     RecordPerformanceRequest,
 } from '@contracts/ranking';
+import {
+    SCORING_SERVICE_NAME,
+    type FinalDebateScoreResponse,
+    type ScoringServiceClient,
+} from '@contracts/scoring';
+import {
+    PROFILE_SERVICE_NAME,
+    type ProfileServiceClient,
+} from '@contracts/profile';
 import { status } from '@grpc/grpc-js';
-import { Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { type ClientGrpc, RpcException } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import type { RankingPerformanceRow } from '../db/database.types';
 import {
     DuplicatePerformanceError,
@@ -14,8 +26,22 @@ import {
 } from './ranking.repository';
 
 @Injectable()
-export class RankingService {
-    constructor(private readonly rankingRepository: RankingRepository) {}
+export class RankingService implements OnModuleInit {
+    private scoring!: ScoringServiceClient;
+    private profile!: ProfileServiceClient;
+
+    constructor(
+        private readonly rankingRepository: RankingRepository,
+        @Inject('SCORING_CLIENT') private readonly scoringClient: ClientGrpc,
+        @Inject('PROFILE_CLIENT') private readonly profileClient: ClientGrpc,
+    ) {}
+
+    onModuleInit(): void {
+        this.scoring =
+            this.scoringClient.getService<ScoringServiceClient>(SCORING_SERVICE_NAME);
+        this.profile =
+            this.profileClient.getService<ProfileServiceClient>(PROFILE_SERVICE_NAME);
+    }
 
     async recordPerformance(
         request: RecordPerformanceRequest,
@@ -62,6 +88,86 @@ export class RankingService {
             total,
         };
     }
+
+    async computeXpForDebateClose(
+        request: ComputeXpForDebateCloseRequest,
+    ): Promise<ComputeXpForDebateCloseResponse> {
+        const finalScore = await this.getFinalScoreOrThrow(request.debateId);
+        const forResult = resultForSide(finalScore.winnerSide, 'FOR');
+        const againstResult = resultForSide(finalScore.winnerSide, 'AGAINST');
+        const forXpDelta = computeXpDelta(forResult, finalScore.finalForScore);
+        const againstXpDelta = computeXpDelta(
+            againstResult,
+            finalScore.finalAgainstScore,
+        );
+
+        await Promise.all([
+            firstValueFrom(
+                this.profile.applyPlayerStatsDelta({
+                    userId: request.forUserId,
+                    xpDelta: forXpDelta,
+                    eloDelta: 0,
+                    result: forResult,
+                }),
+            ),
+            firstValueFrom(
+                this.profile.applyPlayerStatsDelta({
+                    userId: request.againstUserId,
+                    xpDelta: againstXpDelta,
+                    eloDelta: 0,
+                    result: againstResult,
+                }),
+            ),
+        ]);
+
+        const performances = await Promise.all([
+            this.recordPerformance({
+                userId: request.forUserId,
+                debateId: request.debateId,
+                side: 'FOR',
+                result: forResult,
+                finalScore: finalScore.finalForScore,
+                opponentScore: finalScore.finalAgainstScore,
+                xpDelta: forXpDelta,
+                eloDelta: 0,
+            }),
+            this.recordPerformance({
+                userId: request.againstUserId,
+                debateId: request.debateId,
+                side: 'AGAINST',
+                result: againstResult,
+                finalScore: finalScore.finalAgainstScore,
+                opponentScore: finalScore.finalForScore,
+                xpDelta: againstXpDelta,
+                eloDelta: 0,
+            }),
+        ]);
+
+        return {
+            debateId: request.debateId,
+            winnerSide: finalScore.winnerSide,
+            performances,
+        };
+    }
+
+    private async getFinalScoreOrThrow(
+        debateId: string,
+    ): Promise<FinalDebateScoreResponse> {
+        try {
+            return await firstValueFrom(
+                this.scoring.getFinalDebateScore({ debateId }),
+            );
+        } catch (error) {
+            const code = (error as { code?: unknown } | null)?.code;
+            if (code === status.NOT_FOUND) {
+                throw new RpcException({
+                    code: status.FAILED_PRECONDITION,
+                    message: `Final score for debate ${debateId} is required before XP computation`,
+                });
+            }
+            throw error;
+        }
+    }
 }
 
 function toPerformanceHistoryItem(
@@ -79,4 +185,21 @@ function toPerformanceHistoryItem(
         eloDelta: row.elo_delta,
         createdAt: row.created_at.toISOString(),
     };
+}
+
+function resultForSide(
+    winnerSide: string,
+    side: 'FOR' | 'AGAINST',
+): 'WIN' | 'LOSS' | 'DRAW' {
+    if (winnerSide === 'DRAW') return 'DRAW';
+    return winnerSide === side ? 'WIN' : 'LOSS';
+}
+
+function computeXpDelta(
+    result: 'WIN' | 'LOSS' | 'DRAW',
+    finalScore: number,
+): number {
+    const participation = 10;
+    const resultBonus = result === 'WIN' ? 20 : result === 'DRAW' ? 10 : 0;
+    return participation + resultBonus + Math.round(finalScore / 10);
 }

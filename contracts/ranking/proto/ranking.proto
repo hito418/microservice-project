@@ -5,6 +5,7 @@ package ranking.v1;
 service RankingService {
     rpc RecordPerformance (RecordPerformanceRequest) returns (PerformanceHistoryItem);
     rpc ListUserPerformanceHistory (ListUserPerformanceHistoryRequest) returns (ListUserPerformanceHistoryResponse);
+    rpc ComputeXpForDebateClose (ComputeXpForDebateCloseRequest) returns (ComputeXpForDebateCloseResponse);
 }
 
 message RecordPerformanceRequest {
@@ -43,4 +44,17 @@ message PerformanceHistoryItem {
 message ListUserPerformanceHistoryResponse {
     repeated PerformanceHistoryItem items = 1;
     int32 total = 2;
+}
+
+message ComputeXpForDebateCloseRequest {
+    string debate_id = 1;
+    string for_user_id = 2;
+    string against_user_id = 3;
+}
+
+message ComputeXpForDebateCloseResponse {
+    string debate_id = 1;
+    // One of: FOR, AGAINST, DRAW
+    string winner_side = 2;
+    repeated PerformanceHistoryItem performances = 3;
 }

@@ -514,9 +514,15 @@ importers:
 
   services/ranking:
     dependencies:
+      '@contracts/profile':
+        specifier: workspace:*
+        version: link:../../contracts/profile
       '@contracts/ranking':
         specifier: workspace:*
         version: link:../../contracts/ranking
+      '@contracts/scoring':
+        specifier: workspace:*
+        version: link:../../contracts/scoring
       '@grpc/grpc-js':
         specifier: 'catalog:'
         version: 1.14.3

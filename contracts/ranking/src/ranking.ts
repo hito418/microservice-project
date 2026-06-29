@@ -31,3 +31,15 @@ export const listUserPerformanceHistorySchema = z
         offset: z.number().int().min(0).default(0),
     })
     .strict();
+
+export const computeXpForDebateCloseSchema = z
+    .object({
+        debateId: debateIdSchema,
+        forUserId: userIdSchema,
+        againstUserId: userIdSchema,
+    })
+    .strict()
+    .refine((value) => value.forUserId !== value.againstUserId, {
+        message: 'forUserId and againstUserId must be different',
+        path: ['againstUserId'],
+    });
