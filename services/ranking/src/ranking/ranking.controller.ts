@@ -5,6 +5,9 @@ import {
     type ComputeXpForDebateCloseRequest,
     type ComputeXpForDebateCloseResponse,
     computeXpForDebateCloseSchema,
+    type GetLeaderboardRequest,
+    type GetLeaderboardResponse,
+    getLeaderboardSchema,
     type ListUserPerformanceHistoryRequest,
     type ListUserPerformanceHistoryResponse,
     listUserPerformanceHistorySchema,
@@ -50,5 +53,12 @@ export class RankingController implements RankingServiceController {
         request: ComputeEloForDebateCloseRequest,
     ): Promise<ComputeEloForDebateCloseResponse> {
         return this.rankingService.computeEloForDebateClose(request);
+    }
+
+    getLeaderboard(
+        @Payload(new ZodRpcValidationPipe(getLeaderboardSchema))
+        request: GetLeaderboardRequest,
+    ): Promise<GetLeaderboardResponse> {
+        return this.rankingService.getLeaderboard(request);
     }
 }

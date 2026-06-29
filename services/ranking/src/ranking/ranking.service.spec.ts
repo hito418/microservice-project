@@ -1,6 +1,7 @@
 import {
     computeEloForDebateCloseSchema,
     computeXpForDebateCloseSchema,
+    getLeaderboardSchema,
     listUserPerformanceHistorySchema,
     recordPerformanceSchema,
 } from '@contracts/ranking';
@@ -128,6 +129,11 @@ describe('RankingService performance history', () => {
     let profile: {
         applyPlayerStatsDelta: ReturnType<typeof vi.fn>;
         getPlayerStats: ReturnType<typeof vi.fn>;
+        listTopPlayerStats: ReturnType<typeof vi.fn>;
+    };
+    let redis: {
+        get: ReturnType<typeof vi.fn>;
+        set: ReturnType<typeof vi.fn>;
     };
 
     beforeEach(() => {
@@ -138,11 +144,17 @@ describe('RankingService performance history', () => {
         profile = {
             applyPlayerStatsDelta: vi.fn(),
             getPlayerStats: vi.fn(),
+            listTopPlayerStats: vi.fn(),
+        };
+        redis = {
+            get: vi.fn(),
+            set: vi.fn(),
         };
         service = new RankingService(
             repo,
             makeScoringClient(scoring as Partial<ScoringServiceClient>),
             makeProfileClient(profile as Partial<ProfileServiceClient>),
+            redis as never,
         );
         service.onModuleInit();
     });
@@ -668,6 +680,101 @@ describe('RankingService performance history', () => {
         expect(error.code).toBe(status.FAILED_PRECONDITION);
         expect(profile.getPlayerStats).not.toHaveBeenCalled();
     });
+
+    it('returns leaderboard from cache without calling profile', async () => {
+        redis.get.mockResolvedValue(
+            JSON.stringify({
+                items: [
+                    {
+                        userId: FOR_USER_ID,
+                        elo: 1500,
+                        xp: 500,
+                        rankTier: 'GOLD',
+                        winrate: 75,
+                        debatesCount: 4,
+                        wins: 3,
+                        losses: 1,
+                        draws: 0,
+                        rankPosition: 1,
+                    },
+                ],
+            }),
+        );
+
+        const result = await service.getLeaderboard({ limit: 10 });
+
+        expect(redis.get).toHaveBeenCalledWith('ranking:leaderboard:10');
+        expect(profile.listTopPlayerStats).not.toHaveBeenCalled();
+        expect(result.items[0]?.userId).toBe(FOR_USER_ID);
+    });
+
+    it('calls profile and stores leaderboard on cache miss', async () => {
+        redis.get.mockResolvedValue(null);
+        redis.set.mockResolvedValue('OK');
+        profile.listTopPlayerStats.mockReturnValue(
+            of({
+                items: [
+                    playerStatsResponse({
+                        userId: FOR_USER_ID,
+                        elo: 1600,
+                        xp: 700,
+                        debatesCount: 5,
+                        wins: 4,
+                        losses: 1,
+                        winrate: 80,
+                        rankTier: 'PLATINUM',
+                    }),
+                    playerStatsResponse({
+                        userId: AGAINST_USER_ID,
+                        elo: 1500,
+                        xp: 800,
+                        debatesCount: 4,
+                        wins: 2,
+                        losses: 2,
+                        winrate: 50,
+                        rankTier: 'GOLD',
+                    }),
+                ],
+            }),
+        );
+
+        const result = await service.getLeaderboard({ limit: 2 });
+
+        expect(profile.listTopPlayerStats).toHaveBeenCalledWith({ limit: 2 });
+        expect(result.items).toEqual([
+            expect.objectContaining({
+                userId: FOR_USER_ID,
+                rankPosition: 1,
+                elo: 1600,
+                xp: 700,
+            }),
+            expect.objectContaining({
+                userId: AGAINST_USER_ID,
+                rankPosition: 2,
+                elo: 1500,
+                xp: 800,
+            }),
+        ]);
+        expect(redis.set).toHaveBeenCalledWith(
+            'ranking:leaderboard:2',
+            JSON.stringify(result),
+            'EX',
+            30,
+        );
+    });
+
+    it('falls back to uncached profile data when Redis is unavailable', async () => {
+        redis.get.mockRejectedValue(new Error('redis unavailable'));
+        redis.set.mockRejectedValue(new Error('redis unavailable'));
+        profile.listTopPlayerStats.mockReturnValue(
+            of({ items: [playerStatsResponse({ userId: FOR_USER_ID })] }),
+        );
+
+        const result = await service.getLeaderboard({});
+
+        expect(profile.listTopPlayerStats).toHaveBeenCalledWith({ limit: 10 });
+        expect(result.items).toHaveLength(1);
+    });
 });
 
 describe('ranking performance schemas', () => {
@@ -794,5 +901,13 @@ describe('ranking performance schemas', () => {
                 againstUserId: FOR_USER_ID,
             }).success,
         ).toBe(false);
+    });
+
+    it('validates leaderboard limit', () => {
+        expect(getLeaderboardSchema.parse({})).toEqual({ limit: 10 });
+        expect(getLeaderboardSchema.safeParse({ limit: 1 }).success).toBe(true);
+        expect(getLeaderboardSchema.safeParse({ limit: 100 }).success).toBe(true);
+        expect(getLeaderboardSchema.safeParse({ limit: 0 }).success).toBe(false);
+        expect(getLeaderboardSchema.safeParse({ limit: 101 }).success).toBe(false);
     });
 });

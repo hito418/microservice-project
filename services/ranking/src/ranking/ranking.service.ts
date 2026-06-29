@@ -3,6 +3,8 @@ import type {
     ComputeEloForDebateCloseResponse,
     ComputeXpForDebateCloseRequest,
     ComputeXpForDebateCloseResponse,
+    GetLeaderboardRequest,
+    GetLeaderboardResponse,
     ListUserPerformanceHistoryRequest,
     ListUserPerformanceHistoryResponse,
     PerformanceHistoryItem,
@@ -21,8 +23,10 @@ import {
 import { status } from '@grpc/grpc-js';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { type ClientGrpc, RpcException } from '@nestjs/microservices';
+import type Redis from 'ioredis';
 import { firstValueFrom } from 'rxjs';
 import type { RankingPerformanceRow } from '../db/database.types';
+import { REDIS_CLIENT } from './cache.constants';
 import {
     DuplicatePerformanceError,
     RankingRepository,
@@ -37,6 +41,7 @@ export class RankingService implements OnModuleInit {
         private readonly rankingRepository: RankingRepository,
         @Inject('SCORING_CLIENT') private readonly scoringClient: ClientGrpc,
         @Inject('PROFILE_CLIENT') private readonly profileClient: ClientGrpc,
+        @Inject(REDIS_CLIENT) private readonly redis: Redis,
     ) {}
 
     onModuleInit(): void {
@@ -211,6 +216,35 @@ export class RankingService implements OnModuleInit {
         };
     }
 
+    async getLeaderboard(
+        request: GetLeaderboardRequest,
+    ): Promise<GetLeaderboardResponse> {
+        const limit = request.limit ?? 10;
+        const cacheKey = `ranking:leaderboard:${limit}`;
+        const cached = await this.readCachedLeaderboard(cacheKey);
+        if (cached) return cached;
+
+        const topStats = await firstValueFrom(
+            this.profile.listTopPlayerStats({ limit }),
+        );
+        const response: GetLeaderboardResponse = {
+            items: topStats.items.map((stats, index) => ({
+                userId: stats.userId,
+                elo: stats.elo,
+                xp: stats.xp,
+                rankTier: stats.rankTier,
+                winrate: stats.winrate,
+                debatesCount: stats.debatesCount,
+                wins: stats.wins,
+                losses: stats.losses,
+                draws: stats.draws,
+                rankPosition: index + 1,
+            })),
+        };
+        await this.writeCachedLeaderboard(cacheKey, response);
+        return response;
+    }
+
     private async getFinalScoreOrThrow(
         debateId: string,
     ): Promise<FinalDebateScoreResponse> {
@@ -260,6 +294,29 @@ export class RankingService implements OnModuleInit {
             });
         }
         return toPerformanceHistoryItem(row);
+    }
+
+    private async readCachedLeaderboard(
+        cacheKey: string,
+    ): Promise<GetLeaderboardResponse | undefined> {
+        try {
+            const raw = await this.redis.get(cacheKey);
+            if (!raw) return undefined;
+            return JSON.parse(raw) as GetLeaderboardResponse;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private async writeCachedLeaderboard(
+        cacheKey: string,
+        response: GetLeaderboardResponse,
+    ): Promise<void> {
+        try {
+            await this.redis.set(cacheKey, JSON.stringify(response), 'EX', 30);
+        } catch {
+            // Redis is an optimization; callers still get uncached profile data.
+        }
     }
 }
 

@@ -106,3 +106,9 @@ export const applyPlayerStatsDeltaSchema = z
         result: z.enum(PLAYER_STATS_RESULTS),
     })
     .strict();
+
+export const listTopPlayerStatsSchema = z
+    .object({
+        limit: z.number().int().min(1).max(100).default(10),
+    })
+    .strict();

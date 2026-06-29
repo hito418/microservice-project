@@ -4,6 +4,7 @@ import {
     type ProfileServiceClient,
 } from '@contracts/profile';
 import {
+    type GetLeaderboardResponse,
     RANKING_SERVICE_NAME,
     type ListUserPerformanceHistoryResponse,
     type RankingServiceClient,
@@ -185,6 +186,21 @@ export class GatewayController implements OnModuleInit {
             return await firstValueFrom(
                 this.ranking.listUserPerformanceHistory(request),
             );
+        } catch (error) {
+            throw this.mapRankingError(error);
+        }
+    }
+
+    @Get('leaderboard')
+    async getLeaderboard(
+        @Query('limit') limit?: string,
+    ): Promise<GetLeaderboardResponse> {
+        const request = {
+            limit: parseOptionalInteger(limit, 'limit'),
+        };
+
+        try {
+            return await firstValueFrom(this.ranking.getLeaderboard(request));
         } catch (error) {
             throw this.mapRankingError(error);
         }

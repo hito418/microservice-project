@@ -73,6 +73,27 @@ export interface ComputeEloForDebateCloseResponse {
   performances: PerformanceHistoryItem[];
 }
 
+export interface GetLeaderboardRequest {
+  limit?: number | undefined;
+}
+
+export interface LeaderboardItem {
+  userId: string;
+  elo: number;
+  xp: number;
+  rankTier: string;
+  winrate: number;
+  debatesCount: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  rankPosition: number;
+}
+
+export interface GetLeaderboardResponse {
+  items: LeaderboardItem[];
+}
+
 export const RANKING_V1_PACKAGE_NAME = "ranking.v1";
 
 export interface RankingServiceClient {
@@ -92,6 +113,8 @@ export interface RankingServiceClient {
     request: ComputeEloForDebateCloseRequest,
     ...rest: any
   ): Observable<ComputeEloForDebateCloseResponse>;
+
+  getLeaderboard(request: GetLeaderboardRequest, ...rest: any): Observable<GetLeaderboardResponse>;
 }
 
 export interface RankingServiceController {
@@ -123,6 +146,11 @@ export interface RankingServiceController {
     | Promise<ComputeEloForDebateCloseResponse>
     | Observable<ComputeEloForDebateCloseResponse>
     | ComputeEloForDebateCloseResponse;
+
+  getLeaderboard(
+    request: GetLeaderboardRequest,
+    ...rest: any
+  ): Promise<GetLeaderboardResponse> | Observable<GetLeaderboardResponse> | GetLeaderboardResponse;
 }
 
 export function RankingServiceControllerMethods() {
@@ -132,6 +160,7 @@ export function RankingServiceControllerMethods() {
       "listUserPerformanceHistory",
       "computeXpForDebateClose",
       "computeEloForDebateClose",
+      "getLeaderboard",
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);

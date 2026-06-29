@@ -45,3 +45,9 @@ export const computeXpForDebateCloseSchema = z
     });
 
 export const computeEloForDebateCloseSchema = computeXpForDebateCloseSchema;
+
+export const getLeaderboardSchema = z
+    .object({
+        limit: z.number().int().min(1).max(100).default(10),
+    })
+    .strict();
