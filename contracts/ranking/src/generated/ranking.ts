@@ -58,6 +58,21 @@ export interface ComputeXpForDebateCloseResponse {
   performances: PerformanceHistoryItem[];
 }
 
+export interface ComputeEloForDebateCloseRequest {
+  debateId: string;
+  forUserId: string;
+  againstUserId: string;
+}
+
+export interface ComputeEloForDebateCloseResponse {
+  debateId: string;
+  /** One of: FOR, AGAINST, DRAW */
+  winnerSide: string;
+  forEloDelta: number;
+  againstEloDelta: number;
+  performances: PerformanceHistoryItem[];
+}
+
 export const RANKING_V1_PACKAGE_NAME = "ranking.v1";
 
 export interface RankingServiceClient {
@@ -72,6 +87,11 @@ export interface RankingServiceClient {
     request: ComputeXpForDebateCloseRequest,
     ...rest: any
   ): Observable<ComputeXpForDebateCloseResponse>;
+
+  computeEloForDebateClose(
+    request: ComputeEloForDebateCloseRequest,
+    ...rest: any
+  ): Observable<ComputeEloForDebateCloseResponse>;
 }
 
 export interface RankingServiceController {
@@ -95,6 +115,14 @@ export interface RankingServiceController {
     | Promise<ComputeXpForDebateCloseResponse>
     | Observable<ComputeXpForDebateCloseResponse>
     | ComputeXpForDebateCloseResponse;
+
+  computeEloForDebateClose(
+    request: ComputeEloForDebateCloseRequest,
+    ...rest: any
+  ):
+    | Promise<ComputeEloForDebateCloseResponse>
+    | Observable<ComputeEloForDebateCloseResponse>
+    | ComputeEloForDebateCloseResponse;
 }
 
 export function RankingServiceControllerMethods() {
@@ -103,6 +131,7 @@ export function RankingServiceControllerMethods() {
       "recordPerformance",
       "listUserPerformanceHistory",
       "computeXpForDebateClose",
+      "computeEloForDebateClose",
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);

@@ -43,3 +43,5 @@ export const computeXpForDebateCloseSchema = z
         message: 'forUserId and againstUserId must be different',
         path: ['againstUserId'],
     });
+
+export const computeEloForDebateCloseSchema = computeXpForDebateCloseSchema;

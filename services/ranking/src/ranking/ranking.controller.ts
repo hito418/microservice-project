@@ -1,4 +1,7 @@
 import {
+    type ComputeEloForDebateCloseRequest,
+    type ComputeEloForDebateCloseResponse,
+    computeEloForDebateCloseSchema,
     type ComputeXpForDebateCloseRequest,
     type ComputeXpForDebateCloseResponse,
     computeXpForDebateCloseSchema,
@@ -40,5 +43,12 @@ export class RankingController implements RankingServiceController {
         request: ComputeXpForDebateCloseRequest,
     ): Promise<ComputeXpForDebateCloseResponse> {
         return this.rankingService.computeXpForDebateClose(request);
+    }
+
+    computeEloForDebateClose(
+        @Payload(new ZodRpcValidationPipe(computeEloForDebateCloseSchema))
+        request: ComputeEloForDebateCloseRequest,
+    ): Promise<ComputeEloForDebateCloseResponse> {
+        return this.rankingService.computeEloForDebateClose(request);
     }
 }

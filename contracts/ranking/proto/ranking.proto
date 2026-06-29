@@ -6,6 +6,7 @@ service RankingService {
     rpc RecordPerformance (RecordPerformanceRequest) returns (PerformanceHistoryItem);
     rpc ListUserPerformanceHistory (ListUserPerformanceHistoryRequest) returns (ListUserPerformanceHistoryResponse);
     rpc ComputeXpForDebateClose (ComputeXpForDebateCloseRequest) returns (ComputeXpForDebateCloseResponse);
+    rpc ComputeEloForDebateClose (ComputeEloForDebateCloseRequest) returns (ComputeEloForDebateCloseResponse);
 }
 
 message RecordPerformanceRequest {
@@ -57,4 +58,19 @@ message ComputeXpForDebateCloseResponse {
     // One of: FOR, AGAINST, DRAW
     string winner_side = 2;
     repeated PerformanceHistoryItem performances = 3;
+}
+
+message ComputeEloForDebateCloseRequest {
+    string debate_id = 1;
+    string for_user_id = 2;
+    string against_user_id = 3;
+}
+
+message ComputeEloForDebateCloseResponse {
+    string debate_id = 1;
+    // One of: FOR, AGAINST, DRAW
+    string winner_side = 2;
+    int32 for_elo_delta = 3;
+    int32 against_elo_delta = 4;
+    repeated PerformanceHistoryItem performances = 5;
 }

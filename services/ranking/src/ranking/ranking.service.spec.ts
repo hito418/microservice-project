@@ -1,4 +1,5 @@
 import {
+    computeEloForDebateCloseSchema,
     computeXpForDebateCloseSchema,
     listUserPerformanceHistorySchema,
     recordPerformanceSchema,
@@ -30,6 +31,7 @@ function makeRepoMock(): RankingRepository {
         recordPerformance: vi.fn(),
         listUserPerformanceHistory: vi.fn(),
         countUserPerformanceHistory: vi.fn(),
+        updatePerformanceEloDelta: vi.fn(),
     } as unknown as RankingRepository;
 }
 
@@ -125,6 +127,7 @@ describe('RankingService performance history', () => {
     };
     let profile: {
         applyPlayerStatsDelta: ReturnType<typeof vi.fn>;
+        getPlayerStats: ReturnType<typeof vi.fn>;
     };
 
     beforeEach(() => {
@@ -134,6 +137,7 @@ describe('RankingService performance history', () => {
         };
         profile = {
             applyPlayerStatsDelta: vi.fn(),
+            getPlayerStats: vi.fn(),
         };
         service = new RankingService(
             repo,
@@ -333,6 +337,7 @@ describe('RankingService performance history', () => {
                 { userId: AGAINST_USER_ID, xpDelta: 16, eloDelta: 0 },
             ],
         });
+        expect(profile.getPlayerStats).not.toHaveBeenCalled();
     });
 
     it('computes XP when AGAINST wins', async () => {
@@ -471,6 +476,198 @@ describe('RankingService performance history', () => {
         expect(profile.applyPlayerStatsDelta).not.toHaveBeenCalled();
         expect(repo.recordPerformance).not.toHaveBeenCalled();
     });
+
+    it('computes Elo for equal ratings when FOR wins', async () => {
+        scoring.getFinalDebateScore.mockReturnValue(of(finalScore()));
+        profile.getPlayerStats
+            .mockReturnValueOnce(of(playerStatsResponse({ userId: FOR_USER_ID, elo: 1000 })))
+            .mockReturnValueOnce(
+                of(playerStatsResponse({ userId: AGAINST_USER_ID, elo: 1000 })),
+            );
+        profile.applyPlayerStatsDelta.mockImplementation(
+            ({ userId }: { userId: string }) =>
+                of(playerStatsResponse({ userId })),
+        );
+        vi.mocked(repo.updatePerformanceEloDelta)
+            .mockResolvedValueOnce(
+                performanceRow({
+                    user_id: FOR_USER_ID,
+                    side: 'FOR',
+                    result: 'WIN',
+                    elo_delta: 16,
+                }),
+            )
+            .mockResolvedValueOnce(
+                performanceRow({
+                    user_id: AGAINST_USER_ID,
+                    side: 'AGAINST',
+                    result: 'LOSS',
+                    elo_delta: -16,
+                }),
+            );
+
+        const result = await service.computeEloForDebateClose({
+            debateId: 'debate-1',
+            forUserId: FOR_USER_ID,
+            againstUserId: AGAINST_USER_ID,
+        });
+
+        expect(result.forEloDelta).toBe(16);
+        expect(result.againstEloDelta).toBe(-16);
+        expect(profile.applyPlayerStatsDelta).toHaveBeenCalledWith({
+            userId: FOR_USER_ID,
+            xpDelta: 0,
+            eloDelta: 16,
+            result: 'WIN',
+        });
+        expect(profile.applyPlayerStatsDelta).toHaveBeenCalledWith({
+            userId: AGAINST_USER_ID,
+            xpDelta: 0,
+            eloDelta: -16,
+            result: 'LOSS',
+        });
+        expect(repo.updatePerformanceEloDelta).toHaveBeenCalledWith({
+            userId: FOR_USER_ID,
+            debateId: 'debate-1',
+            eloDelta: 16,
+        });
+        expect(repo.updatePerformanceEloDelta).toHaveBeenCalledWith({
+            userId: AGAINST_USER_ID,
+            debateId: 'debate-1',
+            eloDelta: -16,
+        });
+    });
+
+    it('computes Elo for equal ratings when AGAINST wins', async () => {
+        scoring.getFinalDebateScore.mockReturnValue(
+            of(finalScore({ winnerSide: 'AGAINST' })),
+        );
+        profile.getPlayerStats
+            .mockReturnValueOnce(of(playerStatsResponse({ userId: FOR_USER_ID, elo: 1000 })))
+            .mockReturnValueOnce(
+                of(playerStatsResponse({ userId: AGAINST_USER_ID, elo: 1000 })),
+            );
+        profile.applyPlayerStatsDelta.mockImplementation(
+            ({ userId }: { userId: string }) =>
+                of(playerStatsResponse({ userId })),
+        );
+        vi.mocked(repo.updatePerformanceEloDelta)
+            .mockResolvedValueOnce(
+                performanceRow({ user_id: FOR_USER_ID, result: 'LOSS', elo_delta: -16 }),
+            )
+            .mockResolvedValueOnce(
+                performanceRow({
+                    user_id: AGAINST_USER_ID,
+                    side: 'AGAINST',
+                    result: 'WIN',
+                    elo_delta: 16,
+                }),
+            );
+
+        const result = await service.computeEloForDebateClose({
+            debateId: 'debate-1',
+            forUserId: FOR_USER_ID,
+            againstUserId: AGAINST_USER_ID,
+        });
+
+        expect(result.forEloDelta).toBe(-16);
+        expect(result.againstEloDelta).toBe(16);
+    });
+
+    it('computes zero Elo delta for equal-rating draw', async () => {
+        scoring.getFinalDebateScore.mockReturnValue(
+            of(finalScore({ winnerSide: 'DRAW' })),
+        );
+        profile.getPlayerStats
+            .mockReturnValueOnce(of(playerStatsResponse({ userId: FOR_USER_ID, elo: 1000 })))
+            .mockReturnValueOnce(
+                of(playerStatsResponse({ userId: AGAINST_USER_ID, elo: 1000 })),
+            );
+        profile.applyPlayerStatsDelta.mockImplementation(
+            ({ userId }: { userId: string }) =>
+                of(playerStatsResponse({ userId })),
+        );
+        vi.mocked(repo.updatePerformanceEloDelta)
+            .mockResolvedValueOnce(performanceRow({ user_id: FOR_USER_ID, elo_delta: 0 }))
+            .mockResolvedValueOnce(
+                performanceRow({ user_id: AGAINST_USER_ID, elo_delta: 0 }),
+            );
+
+        const result = await service.computeEloForDebateClose({
+            debateId: 'debate-1',
+            forUserId: FOR_USER_ID,
+            againstUserId: AGAINST_USER_ID,
+        });
+
+        expect(result.forEloDelta).toBe(0);
+        expect(result.againstEloDelta).toBe(0);
+        expect(profile.applyPlayerStatsDelta).toHaveBeenCalledWith(
+            expect.objectContaining({ xpDelta: 0, eloDelta: 0, result: 'DRAW' }),
+        );
+    });
+
+    it('gives a larger Elo gain for an upset', async () => {
+        scoring.getFinalDebateScore.mockReturnValue(of(finalScore()));
+        profile.getPlayerStats
+            .mockReturnValueOnce(of(playerStatsResponse({ userId: FOR_USER_ID, elo: 800 })))
+            .mockReturnValueOnce(
+                of(playerStatsResponse({ userId: AGAINST_USER_ID, elo: 1200 })),
+            );
+        profile.applyPlayerStatsDelta.mockImplementation(
+            ({ userId }: { userId: string }) =>
+                of(playerStatsResponse({ userId })),
+        );
+        vi.mocked(repo.updatePerformanceEloDelta)
+            .mockResolvedValueOnce(performanceRow({ user_id: FOR_USER_ID, elo_delta: 29 }))
+            .mockResolvedValueOnce(
+                performanceRow({ user_id: AGAINST_USER_ID, elo_delta: -29 }),
+            );
+
+        const result = await service.computeEloForDebateClose({
+            debateId: 'debate-1',
+            forUserId: FOR_USER_ID,
+            againstUserId: AGAINST_USER_ID,
+        });
+
+        expect(result.forEloDelta).toBe(29);
+        expect(result.againstEloDelta).toBe(-29);
+    });
+
+    it('rejects missing player stats', async () => {
+        scoring.getFinalDebateScore.mockReturnValue(of(finalScore()));
+        profile.getPlayerStats.mockReturnValueOnce(
+            throwError(() => ({ code: status.NOT_FOUND })),
+        );
+
+        const error = await rpcErrorOf(() =>
+            service.computeEloForDebateClose({
+                debateId: 'debate-1',
+                forUserId: FOR_USER_ID,
+                againstUserId: AGAINST_USER_ID,
+            }),
+        );
+
+        expect(error.code).toBe(status.FAILED_PRECONDITION);
+        expect(profile.applyPlayerStatsDelta).not.toHaveBeenCalled();
+        expect(repo.updatePerformanceEloDelta).not.toHaveBeenCalled();
+    });
+
+    it('rejects missing final score for Elo', async () => {
+        scoring.getFinalDebateScore.mockReturnValue(
+            throwError(() => ({ code: status.NOT_FOUND })),
+        );
+
+        const error = await rpcErrorOf(() =>
+            service.computeEloForDebateClose({
+                debateId: 'debate-1',
+                forUserId: FOR_USER_ID,
+                againstUserId: AGAINST_USER_ID,
+            }),
+        );
+
+        expect(error.code).toBe(status.FAILED_PRECONDITION);
+        expect(profile.getPlayerStats).not.toHaveBeenCalled();
+    });
 });
 
 describe('ranking performance schemas', () => {
@@ -578,6 +775,23 @@ describe('ranking performance schemas', () => {
                 debateId: 'debate-1',
                 forUserId: 'not-a-uuid',
                 againstUserId: AGAINST_USER_ID,
+            }).success,
+        ).toBe(false);
+    });
+
+    it('validates debate close Elo players', () => {
+        expect(
+            computeEloForDebateCloseSchema.safeParse({
+                debateId: 'debate-1',
+                forUserId: FOR_USER_ID,
+                againstUserId: AGAINST_USER_ID,
+            }).success,
+        ).toBe(true);
+        expect(
+            computeEloForDebateCloseSchema.safeParse({
+                debateId: 'debate-1',
+                forUserId: FOR_USER_ID,
+                againstUserId: FOR_USER_ID,
             }).success,
         ).toBe(false);
     });
