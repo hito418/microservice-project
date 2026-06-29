@@ -4,6 +4,11 @@ import {
     type ProfileServiceClient,
 } from '@contracts/profile';
 import {
+    RANKING_SERVICE_NAME,
+    type ListUserPerformanceHistoryResponse,
+    type RankingServiceClient,
+} from '@contracts/ranking';
+import {
     SCORING_SERVICE_NAME,
     type AiAnalysisResultResponse,
     type AudienceVoteSummaryResponse,
@@ -48,10 +53,12 @@ interface GrpcError {
 export class GatewayController implements OnModuleInit {
     private scoring!: ScoringServiceClient;
     private profile!: ProfileServiceClient;
+    private ranking!: RankingServiceClient;
 
     constructor(
         @Inject('SCORING_CLIENT') private readonly scoringClient: ClientGrpc,
         @Inject('PROFILE_CLIENT') private readonly profileClient: ClientGrpc,
+        @Inject('RANKING_CLIENT') private readonly rankingClient: ClientGrpc,
         private readonly realtime: RealtimeService,
     ) {}
 
@@ -60,6 +67,8 @@ export class GatewayController implements OnModuleInit {
             this.scoringClient.getService<ScoringServiceClient>(SCORING_SERVICE_NAME);
         this.profile =
             this.profileClient.getService<ProfileServiceClient>(PROFILE_SERVICE_NAME);
+        this.ranking =
+            this.rankingClient.getService<RankingServiceClient>(RANKING_SERVICE_NAME);
     }
 
     @Post('debates/:debateId/votes')
@@ -160,6 +169,27 @@ export class GatewayController implements OnModuleInit {
         }
     }
 
+    @Get('profiles/:userId/performance-history')
+    async listUserPerformanceHistory(
+        @Param('userId') userId: string,
+        @Query('limit') limit?: string,
+        @Query('offset') offset?: string,
+    ): Promise<ListUserPerformanceHistoryResponse> {
+        const request = {
+            userId,
+            limit: parseOptionalInteger(limit, 'limit'),
+            offset: parseOptionalInteger(offset, 'offset'),
+        };
+
+        try {
+            return await firstValueFrom(
+                this.ranking.listUserPerformanceHistory(request),
+            );
+        } catch (error) {
+            throw this.mapRankingError(error);
+        }
+    }
+
     private mapScoringError(error: unknown): Error {
         const code = (error as GrpcError | null)?.code;
         switch (code) {
@@ -185,6 +215,18 @@ export class GatewayController implements OnModuleInit {
                 return new NotFoundException('profile stats not found');
             default:
                 return new InternalServerErrorException('profile service request failed');
+        }
+    }
+
+    private mapRankingError(error: unknown): Error {
+        const code = (error as GrpcError | null)?.code;
+        switch (code) {
+            case grpcStatus.INVALID_ARGUMENT:
+                return new BadRequestException('invalid ranking payload');
+            case grpcStatus.NOT_FOUND:
+                return new NotFoundException('ranking history not found');
+            default:
+                return new InternalServerErrorException('ranking service request failed');
         }
     }
 }

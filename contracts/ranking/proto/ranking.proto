@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package ranking.v1;
+
+service RankingService {
+    rpc RecordPerformance (RecordPerformanceRequest) returns (PerformanceHistoryItem);
+    rpc ListUserPerformanceHistory (ListUserPerformanceHistoryRequest) returns (ListUserPerformanceHistoryResponse);
+}
+
+message RecordPerformanceRequest {
+    string user_id = 1;
+    string debate_id = 2;
+    // One of: FOR, AGAINST
+    string side = 3;
+    // One of: WIN, LOSS, DRAW
+    string result = 4;
+    int32 final_score = 5;
+    optional int32 opponent_score = 6;
+    int32 xp_delta = 7;
+    int32 elo_delta = 8;
+}
+
+message ListUserPerformanceHistoryRequest {
+    string user_id = 1;
+    optional int32 limit = 2;
+    optional int32 offset = 3;
+}
+
+message PerformanceHistoryItem {
+    string id = 1;
+    string user_id = 2;
+    string debate_id = 3;
+    string side = 4;
+    string result = 5;
+    int32 final_score = 6;
+    optional int32 opponent_score = 7;
+    int32 xp_delta = 8;
+    int32 elo_delta = 9;
+    // RFC 3339 / ISO 8601
+    string created_at = 10;
+}
+
+message ListUserPerformanceHistoryResponse {
+    repeated PerformanceHistoryItem items = 1;
+    int32 total = 2;
+}

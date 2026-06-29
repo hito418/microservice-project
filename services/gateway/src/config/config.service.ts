@@ -41,6 +41,13 @@ export class ConfigService {
         return parsePort('PROFILE_GRPC_PORT', 50053);
     }
 
+    get rankingGrpcHost(): string {
+        return process.env.RANKING_GRPC_HOST ?? '127.0.0.1';
+    }
+    get rankingGrpcPort(): number {
+        return parsePort('RANKING_GRPC_PORT', 50055);
+    }
+
     get authCookieName(): string {
         return process.env.AUTH_COOKIE_NAME?.trim() || AUTH_COOKIE_DEFAULT_NAME;
     }

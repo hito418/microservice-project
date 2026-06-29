@@ -23,6 +23,11 @@ import type {
     PlayerStatsResponse,
     ProfileServiceClient,
 } from '@contracts/profile';
+import type {
+    ListUserPerformanceHistoryRequest,
+    ListUserPerformanceHistoryResponse,
+    RankingServiceClient,
+} from '@contracts/ranking';
 import type { AuthenticatedUser } from './auth/authenticated-user';
 import { GatewayController } from './gateway.controller';
 import type { RealtimeService } from './realtime/realtime.service';
@@ -44,6 +49,9 @@ interface CreateControllerOptions {
         request: GetRandomRecentDebateForVotingRequest,
     ) => RandomRecentDebateForVotingResponse;
     onPlayerStats?: (request: GetPlayerStatsRequest) => PlayerStatsResponse;
+    onPerformanceHistory?: (
+        request: ListUserPerformanceHistoryRequest,
+    ) => ListUserPerformanceHistoryResponse;
     realtime?: RealtimeStub;
 }
 
@@ -59,6 +67,15 @@ function createProfileClient(
 ): ClientGrpc {
     return {
         getService: () => ({ getPlayerStats }),
+    } as unknown as ClientGrpc;
+}
+
+function createRankingClient(
+    listUserPerformanceHistory: RankingServiceClient['listUserPerformanceHistory'] =
+        () => of({ items: [], total: 0 }),
+): ClientGrpc {
+    return {
+        getService: () => ({ listUserPerformanceHistory }),
     } as unknown as ClientGrpc;
 }
 
@@ -119,6 +136,10 @@ function createController(
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
     }));
+    const onPerformanceHistory = options.onPerformanceHistory ?? (() => ({
+        items: [],
+        total: 0,
+    }));
     const realtime = options.realtime ?? createRealtimeStub();
     const scoring: Pick<
         ScoringServiceClient,
@@ -144,9 +165,16 @@ function createController(
     const profileClient = {
         getService: () => profile,
     } as unknown as ClientGrpc;
+    const ranking: Pick<RankingServiceClient, 'listUserPerformanceHistory'> = {
+        listUserPerformanceHistory: (request) => of(onPerformanceHistory(request)),
+    };
+    const rankingClient = {
+        getService: () => ranking,
+    } as unknown as ClientGrpc;
     const controller = new GatewayController(
         scoringClient,
         profileClient,
+        rankingClient,
         realtime as RealtimeService,
     );
     controller.onModuleInit();
@@ -260,6 +288,7 @@ describe('GatewayController AI analysis results', () => {
         const controller = new GatewayController(
             client,
             createProfileClient(),
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -284,6 +313,7 @@ describe('GatewayController AI analysis results', () => {
         const controller = new GatewayController(
             client,
             createProfileClient(),
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -354,6 +384,7 @@ describe('GatewayController final debate scores', () => {
         const controller = new GatewayController(
             client,
             createProfileClient(),
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -382,6 +413,7 @@ describe('GatewayController final debate scores', () => {
         const controller = new GatewayController(
             client,
             createProfileClient(),
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -489,6 +521,7 @@ describe('GatewayController random recent debates for voting', () => {
         const controller = new GatewayController(
             client,
             createProfileClient(),
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -519,6 +552,7 @@ describe('GatewayController random recent debates for voting', () => {
         const controller = new GatewayController(
             client,
             createProfileClient(),
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -587,6 +621,7 @@ describe('GatewayController player stats', () => {
         const controller = new GatewayController(
             scoringClient,
             profileClient,
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -610,6 +645,7 @@ describe('GatewayController player stats', () => {
         const controller = new GatewayController(
             scoringClient,
             profileClient,
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -667,6 +703,7 @@ describe('GatewayController audience vote summaries', () => {
         const controller = new GatewayController(
             client,
             createProfileClient(),
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
@@ -690,12 +727,102 @@ describe('GatewayController audience vote summaries', () => {
         const controller = new GatewayController(
             client,
             createProfileClient(),
+            createRankingClient(),
             createRealtimeStub() as RealtimeService,
         );
         controller.onModuleInit();
 
         await assert.rejects(
             () => controller.getAudienceVoteSummary(''),
+            BadRequestException,
+        );
+    });
+});
+
+describe('GatewayController performance history', () => {
+    it('takes userId from the URL and passes pagination to ranking', async () => {
+        let received: ListUserPerformanceHistoryRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onPerformanceHistory: (request) => {
+                    received = request;
+                    return {
+                        items: [
+                            {
+                                id: '33333333-3333-3333-3333-333333333333',
+                                userId: '11111111-1111-1111-1111-111111111111',
+                                debateId: 'debate-1',
+                                side: 'FOR',
+                                result: 'WIN',
+                                finalScore: 84,
+                                opponentScore: 62,
+                                xpDelta: 0,
+                                eloDelta: 0,
+                                createdAt: '2026-01-01T00:00:00.000Z',
+                            },
+                        ],
+                        total: 1,
+                    };
+                },
+            },
+        );
+
+        const result = await controller.listUserPerformanceHistory(
+            '11111111-1111-1111-1111-111111111111',
+            '10',
+            '5',
+        );
+
+        assert.deepEqual(received, {
+            userId: '11111111-1111-1111-1111-111111111111',
+            limit: 10,
+            offset: 5,
+        });
+        assert.equal(result.total, 1);
+        assert.equal(result.items[0]?.debateId, 'debate-1');
+    });
+
+    it('rejects non-integer pagination before calling ranking', async () => {
+        let rankingCalled = false;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onPerformanceHistory: () => {
+                    rankingCalled = true;
+                    return { items: [], total: 0 };
+                },
+            },
+        );
+
+        await assert.rejects(
+            () =>
+                controller.listUserPerformanceHistory(
+                    '11111111-1111-1111-1111-111111111111',
+                    'abc',
+                ),
+            BadRequestException,
+        );
+        assert.equal(rankingCalled, false);
+    });
+
+    it('maps ranking validation errors to HTTP 400', async () => {
+        const scoringClient = {
+            getService: () => ({} as ScoringServiceClient),
+        } as unknown as ClientGrpc;
+        const rankingClient = createRankingClient(() =>
+            throwError(() => ({ code: grpcStatus.INVALID_ARGUMENT })),
+        );
+        const controller = new GatewayController(
+            scoringClient,
+            createProfileClient(),
+            rankingClient,
+            createRealtimeStub() as RealtimeService,
+        );
+        controller.onModuleInit();
+
+        await assert.rejects(
+            () => controller.listUserPerformanceHistory('not-a-uuid'),
             BadRequestException,
         );
     });
