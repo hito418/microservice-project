@@ -1,15 +1,25 @@
 import {
+    type ApplyPlayerStatsDeltaRequest,
+    applyPlayerStatsDeltaSchema,
     type CreateProfileRequest,
     createProfileSchema,
     type DeleteProfileResponse,
     deleteProfileSchema,
     type GetProfileRequest,
     getProfileSchema,
+    type GetPlayerStatsRequest,
+    getPlayerStatsSchema,
+    type ListTopPlayerStatsRequest,
+    type ListTopPlayerStatsResponse,
+    listTopPlayerStatsSchema,
+    type PlayerStatsResponse,
     type ProfileResponse,
     type ProfileServiceController,
     ProfileServiceControllerMethods,
     type UpdateProfileRequest,
     updateProfileSchema,
+    type UpsertPlayerStatsRequest,
+    upsertPlayerStatsSchema,
 } from '@contracts/profile';
 import { Controller } from '@nestjs/common';
 import { Payload } from '@nestjs/microservices';
@@ -51,5 +61,33 @@ export class ProfileController implements ProfileServiceController {
         @GrpcUser() user: GrpcPrincipal,
     ): Promise<DeleteProfileResponse> {
         return this.profileService.deleteProfile(user.id);
+    }
+
+    getPlayerStats(
+        @Payload(new ZodRpcValidationPipe(getPlayerStatsSchema))
+        request: GetPlayerStatsRequest,
+    ): Promise<PlayerStatsResponse> {
+        return this.profileService.getPlayerStats(request);
+    }
+
+    upsertPlayerStats(
+        @Payload(new ZodRpcValidationPipe(upsertPlayerStatsSchema))
+        request: UpsertPlayerStatsRequest,
+    ): Promise<PlayerStatsResponse> {
+        return this.profileService.upsertPlayerStats(request);
+    }
+
+    applyPlayerStatsDelta(
+        @Payload(new ZodRpcValidationPipe(applyPlayerStatsDeltaSchema))
+        request: ApplyPlayerStatsDeltaRequest,
+    ): Promise<PlayerStatsResponse> {
+        return this.profileService.applyPlayerStatsDelta(request);
+    }
+
+    listTopPlayerStats(
+        @Payload(new ZodRpcValidationPipe(listTopPlayerStatsSchema))
+        request: ListTopPlayerStatsRequest,
+    ): Promise<ListTopPlayerStatsResponse> {
+        return this.profileService.listTopPlayerStats(request);
     }
 }

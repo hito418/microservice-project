@@ -49,14 +49,61 @@ export interface DeleteProfileResponse {
   userId: string;
 }
 
+export interface GetPlayerStatsRequest {
+  userId: string;
+}
+
+export interface UpsertPlayerStatsRequest {
+  userId: string;
+  xp: number;
+  elo: number;
+  debatesCount: number;
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+export interface ApplyPlayerStatsDeltaRequest {
+  userId: string;
+  xpDelta: number;
+  eloDelta: number;
+  /** One of: WIN, LOSS, DRAW */
+  result: string;
+}
+
+export interface PlayerStatsResponse {
+  userId: string;
+  xp: number;
+  elo: number;
+  debatesCount: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  /** Derived as round((wins / debates_count) * 100), or 0 if debates_count is 0. */
+  winrate: number;
+  /** RFC 3339 / ISO 8601 */
+  createdAt: string;
+  /** RFC 3339 / ISO 8601 */
+  updatedAt: string;
+  /** Derived from elo. One of: BRONZE, SILVER, GOLD, PLATINUM, DIAMOND, MASTER. */
+  rankTier: string;
+}
+
+export interface ListTopPlayerStatsRequest {
+  limit?: number | undefined;
+}
+
+export interface ListTopPlayerStatsResponse {
+  items: PlayerStatsResponse[];
+}
+
 export const PROFILE_V1_PACKAGE_NAME = "profile.v1";
 
 /**
- * Profiles are 1:1 with users. A profile's owner is identified by the
- * authenticated principal that travels out-of-band as gRPC metadata
- * (see @repo/common/grpc user-metadata) — mutating RPCs therefore do NOT
- * carry a user_id field. GetProfile is a public read and takes the target
- * user_id explicitly.
+ * Profiles are 1:1 with users. Profile ownership for Create/Update/Delete is
+ * identified by the authenticated principal that travels out-of-band as gRPC
+ * metadata (see @repo/common/grpc user-metadata). Public/profile read RPCs and
+ * internal player-stats RPCs carry the target user_id explicitly.
  */
 
 export interface ProfileServiceClient {
@@ -67,14 +114,24 @@ export interface ProfileServiceClient {
   updateProfile(request: UpdateProfileRequest, ...rest: any): Observable<ProfileResponse>;
 
   deleteProfile(request: DeleteProfileRequest, ...rest: any): Observable<DeleteProfileResponse>;
+
+  getPlayerStats(request: GetPlayerStatsRequest, ...rest: any): Observable<PlayerStatsResponse>;
+
+  upsertPlayerStats(request: UpsertPlayerStatsRequest, ...rest: any): Observable<PlayerStatsResponse>;
+
+  applyPlayerStatsDelta(
+    request: ApplyPlayerStatsDeltaRequest,
+    ...rest: any
+  ): Observable<PlayerStatsResponse>;
+
+  listTopPlayerStats(request: ListTopPlayerStatsRequest, ...rest: any): Observable<ListTopPlayerStatsResponse>;
 }
 
 /**
- * Profiles are 1:1 with users. A profile's owner is identified by the
- * authenticated principal that travels out-of-band as gRPC metadata
- * (see @repo/common/grpc user-metadata) — mutating RPCs therefore do NOT
- * carry a user_id field. GetProfile is a public read and takes the target
- * user_id explicitly.
+ * Profiles are 1:1 with users. Profile ownership for Create/Update/Delete is
+ * identified by the authenticated principal that travels out-of-band as gRPC
+ * metadata (see @repo/common/grpc user-metadata). Public/profile read RPCs and
+ * internal player-stats RPCs carry the target user_id explicitly.
  */
 
 export interface ProfileServiceController {
@@ -97,11 +154,40 @@ export interface ProfileServiceController {
     request: DeleteProfileRequest,
     ...rest: any
   ): Promise<DeleteProfileResponse> | Observable<DeleteProfileResponse> | DeleteProfileResponse;
+
+  getPlayerStats(
+    request: GetPlayerStatsRequest,
+    ...rest: any
+  ): Promise<PlayerStatsResponse> | Observable<PlayerStatsResponse> | PlayerStatsResponse;
+
+  upsertPlayerStats(
+    request: UpsertPlayerStatsRequest,
+    ...rest: any
+  ): Promise<PlayerStatsResponse> | Observable<PlayerStatsResponse> | PlayerStatsResponse;
+
+  applyPlayerStatsDelta(
+    request: ApplyPlayerStatsDeltaRequest,
+    ...rest: any
+  ): Promise<PlayerStatsResponse> | Observable<PlayerStatsResponse> | PlayerStatsResponse;
+
+  listTopPlayerStats(
+    request: ListTopPlayerStatsRequest,
+    ...rest: any
+  ): Promise<ListTopPlayerStatsResponse> | Observable<ListTopPlayerStatsResponse> | ListTopPlayerStatsResponse;
 }
 
 export function ProfileServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createProfile", "getProfile", "updateProfile", "deleteProfile"];
+    const grpcMethods: string[] = [
+      "createProfile",
+      "getProfile",
+      "updateProfile",
+      "deleteProfile",
+      "getPlayerStats",
+      "upsertPlayerStats",
+      "applyPlayerStatsDelta",
+      "listTopPlayerStats",
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("ProfileService", method)(constructor.prototype[method], method, descriptor);
