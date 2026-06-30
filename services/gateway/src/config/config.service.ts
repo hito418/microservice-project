@@ -71,9 +71,23 @@ export class ConfigService {
         return resolveJwtAlgorithm(process.env.JWT_ALGORITHM);
     }
 
+    get corsOrigins(): string[] {
+        return parseCorsOrigins(process.env.CORS_ORIGINS);
+    }
+
     get logLevels(): LogLevel[] {
         return resolveLogLevels();
     }
+}
+
+const DEFAULT_CORS_ORIGINS = ['http://localhost:5173'];
+
+function parseCorsOrigins(raw: string | undefined): string[] {
+    const origins = (raw ?? '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+    return origins.length > 0 ? origins : DEFAULT_CORS_ORIGINS;
 }
 
 function parseSameSite(raw: string | undefined): SameSiteMode | undefined {

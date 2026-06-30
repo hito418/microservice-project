@@ -19,6 +19,7 @@ import { RankingService } from './ranking.service';
 
 @Module({
     imports: [
+        ConfigModule,
         DatabaseModule,
         ClientsModule.registerAsync([
             {

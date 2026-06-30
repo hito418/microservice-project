@@ -18,6 +18,7 @@
     },
     "dependencies": {
         "@contracts/auth": "workspace:*",
+        "@contracts/profile": "workspace:*",
         "@grpc/grpc-js": "catalog:",
         "@grpc/proto-loader": "catalog:",
         "@nestjs/common": "catalog:",
