@@ -29,6 +29,12 @@ export type ListUserPerformanceHistoryInput = {
     offset: number;
 };
 
+export type UpdatePerformanceEloDeltaInput = {
+    userId: string;
+    debateId: string;
+    eloDelta: number;
+};
+
 function isDuplicatePerformance(err: unknown): boolean {
     if (typeof err !== 'object' || err === null) return false;
     const e = err as { code?: unknown; constraint?: unknown };
@@ -86,5 +92,17 @@ export class RankingRepository {
             .where('user_id', '=', userId)
             .executeTakeFirstOrThrow();
         return row.total;
+    }
+
+    updatePerformanceEloDelta(
+        input: UpdatePerformanceEloDeltaInput,
+    ): Promise<RankingPerformanceRow | undefined> {
+        return this.db
+            .updateTable('ranking_performances')
+            .set({ elo_delta: input.eloDelta })
+            .where('user_id', '=', input.userId)
+            .where('debate_id', '=', input.debateId)
+            .returningAll()
+            .executeTakeFirst();
     }
 }

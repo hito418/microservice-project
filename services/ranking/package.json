@@ -27,6 +27,7 @@
         "@nestjs/microservices": "catalog:",
         "@repo/common": "workspace:*",
         "drizzle-orm": "catalog:",
+        "ioredis": "^5.10.1",
         "kysely": "catalog:",
         "pg": "catalog:",
         "reflect-metadata": "catalog:",

@@ -114,6 +114,17 @@ export class ProfileRepository {
             .executeTakeFirst();
     }
 
+    listTopStats(limit: number): Promise<PlayerStatsRow[]> {
+        return this.db
+            .selectFrom('player_stats')
+            .selectAll()
+            .orderBy('elo', 'desc')
+            .orderBy('xp', 'desc')
+            .orderBy('user_id', 'asc')
+            .limit(limit)
+            .execute();
+    }
+
     upsertStats(input: UpsertPlayerStatsRecord): Promise<PlayerStatsRow> {
         const values = {
             user_id: input.userId,

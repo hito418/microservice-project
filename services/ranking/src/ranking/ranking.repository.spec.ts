@@ -145,4 +145,43 @@ describe('RankingRepository', () => {
         expect(captured.limit).toBe(10);
         expect(captured.offset).toBe(5);
     });
+
+    it('updates a performance Elo delta', async () => {
+        const row = performanceRow({ elo_delta: 16 });
+        const captured: {
+            set?: unknown;
+            where: unknown[][];
+        } = { where: [] };
+        const chain = {
+            set: vi.fn((set: unknown) => {
+                captured.set = set;
+                return chain;
+            }),
+            where: vi.fn((...args: unknown[]) => {
+                captured.where.push(args);
+                return chain;
+            }),
+            returningAll: vi.fn(() => chain),
+            executeTakeFirst: vi.fn().mockResolvedValue(row),
+        };
+        const db = {
+            updateTable: vi.fn(() => chain),
+        } as unknown as Kysely<Database>;
+        const repo = new RankingRepository(db);
+
+        await expect(
+            repo.updatePerformanceEloDelta({
+                userId: '11111111-1111-1111-1111-111111111111',
+                debateId: 'debate-1',
+                eloDelta: 16,
+            }),
+        ).resolves.toBe(row);
+
+        expect(db.updateTable).toHaveBeenCalledWith('ranking_performances');
+        expect(captured.set).toEqual({ elo_delta: 16 });
+        expect(captured.where).toEqual([
+            ['user_id', '=', '11111111-1111-1111-1111-111111111111'],
+            ['debate_id', '=', 'debate-1'],
+        ]);
+    });
 });

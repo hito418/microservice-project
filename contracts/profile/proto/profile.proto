@@ -14,6 +14,7 @@ service ProfileService {
     rpc GetPlayerStats (GetPlayerStatsRequest) returns (PlayerStatsResponse);
     rpc UpsertPlayerStats (UpsertPlayerStatsRequest) returns (PlayerStatsResponse);
     rpc ApplyPlayerStatsDelta (ApplyPlayerStatsDeltaRequest) returns (PlayerStatsResponse);
+    rpc ListTopPlayerStats (ListTopPlayerStatsRequest) returns (ListTopPlayerStatsResponse);
 }
 
 message ProfileResponse {
@@ -88,4 +89,12 @@ message PlayerStatsResponse {
     string updated_at = 10;
     // Derived from elo. One of: BRONZE, SILVER, GOLD, PLATINUM, DIAMOND, MASTER.
     string rank_tier = 11;
+}
+
+message ListTopPlayerStatsRequest {
+    optional int32 limit = 1;
+}
+
+message ListTopPlayerStatsResponse {
+    repeated PlayerStatsResponse items = 1;
 }

@@ -1,5 +1,6 @@
 import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
+import { listTopPlayerStatsSchema } from '@contracts/profile';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerStatsRow, ProfileRow } from '../db/database.types';
 import { ProfileAlreadyExistsError, ProfileRepository } from './profile.repository';
@@ -15,6 +16,7 @@ function makeRepoMock(): ProfileRepository {
         update: vi.fn(),
         deleteByUserId: vi.fn(),
         findStatsByUserId: vi.fn(),
+        listTopStats: vi.fn(),
         upsertStats: vi.fn(),
         applyStatsDelta: vi.fn(),
     } as unknown as ProfileRepository;
@@ -245,6 +247,57 @@ describe('ProfileService', () => {
         });
     });
 
+    describe('listTopPlayerStats', () => {
+        it('returns top stats with computed fields', async () => {
+            vi.mocked(repo.listTopStats).mockResolvedValue([
+                playerStatsRow({
+                    user_id: '22222222-2222-2222-2222-222222222222',
+                    xp: 500,
+                    elo: 1500,
+                    debates_count: 4,
+                    wins: 3,
+                    losses: 1,
+                }),
+                playerStatsRow({
+                    user_id: USER_ID,
+                    xp: 250,
+                    elo: 1400,
+                    debates_count: 2,
+                    wins: 1,
+                    losses: 1,
+                }),
+            ]);
+
+            const result = await service.listTopPlayerStats({ limit: 2 });
+
+            expect(repo.listTopStats).toHaveBeenCalledWith(2);
+            expect(result.items).toEqual([
+                expect.objectContaining({
+                    userId: '22222222-2222-2222-2222-222222222222',
+                    elo: 1500,
+                    xp: 500,
+                    winrate: 75,
+                    rankTier: 'GOLD',
+                }),
+                expect.objectContaining({
+                    userId: USER_ID,
+                    elo: 1400,
+                    xp: 250,
+                    winrate: 50,
+                    rankTier: 'GOLD',
+                }),
+            ]);
+        });
+
+        it('defaults top stats limit', async () => {
+            vi.mocked(repo.listTopStats).mockResolvedValue([]);
+
+            await service.listTopPlayerStats({});
+
+            expect(repo.listTopStats).toHaveBeenCalledWith(10);
+        });
+    });
+
     describe('upsertPlayerStats', () => {
         it('creates or updates stats and computes winrate', async () => {
             vi.mocked(repo.upsertStats).mockResolvedValue(
@@ -457,5 +510,21 @@ describe('ProfileService', () => {
             expect(error.code).toBe(status.INVALID_ARGUMENT);
             expect(repo.applyStatsDelta).not.toHaveBeenCalled();
         });
+    });
+});
+
+describe('listTopPlayerStatsSchema', () => {
+    it('validates limit bounds and default', () => {
+        expect(listTopPlayerStatsSchema.parse({})).toEqual({ limit: 10 });
+        expect(listTopPlayerStatsSchema.safeParse({ limit: 1 }).success).toBe(true);
+        expect(listTopPlayerStatsSchema.safeParse({ limit: 100 }).success).toBe(
+            true,
+        );
+        expect(listTopPlayerStatsSchema.safeParse({ limit: 0 }).success).toBe(
+            false,
+        );
+        expect(listTopPlayerStatsSchema.safeParse({ limit: 101 }).success).toBe(
+            false,
+        );
     });
 });
