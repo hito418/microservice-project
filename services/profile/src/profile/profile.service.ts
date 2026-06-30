@@ -5,6 +5,8 @@ import type {
     DeleteProfileResponse,
     GetProfileRequest,
     GetPlayerStatsRequest,
+    ListTopPlayerStatsRequest,
+    ListTopPlayerStatsResponse,
     PlayerStatsResponse,
     ProfileResponse,
     UpdateProfileRequest,
@@ -103,6 +105,14 @@ export class ProfileService {
             });
         }
         return toStatsResponse(stats);
+    }
+
+    async listTopPlayerStats(
+        request: ListTopPlayerStatsRequest,
+    ): Promise<ListTopPlayerStatsResponse> {
+        const limit = request.limit ?? 10;
+        const stats = await this.profileRepository.listTopStats(limit);
+        return { items: stats.map(toStatsResponse) };
     }
 
     async upsertPlayerStats(

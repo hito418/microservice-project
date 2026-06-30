@@ -9,6 +9,9 @@ import {
     getProfileSchema,
     type GetPlayerStatsRequest,
     getPlayerStatsSchema,
+    type ListTopPlayerStatsRequest,
+    type ListTopPlayerStatsResponse,
+    listTopPlayerStatsSchema,
     type PlayerStatsResponse,
     type ProfileResponse,
     type ProfileServiceController,
@@ -79,5 +82,12 @@ export class ProfileController implements ProfileServiceController {
         request: ApplyPlayerStatsDeltaRequest,
     ): Promise<PlayerStatsResponse> {
         return this.profileService.applyPlayerStatsDelta(request);
+    }
+
+    listTopPlayerStats(
+        @Payload(new ZodRpcValidationPipe(listTopPlayerStatsSchema))
+        request: ListTopPlayerStatsRequest,
+    ): Promise<ListTopPlayerStatsResponse> {
+        return this.profileService.listTopPlayerStats(request);
     }
 }
