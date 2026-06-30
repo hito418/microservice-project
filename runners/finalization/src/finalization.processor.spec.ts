@@ -25,7 +25,7 @@ describe('FinalizationProcessor', () => {
         const processor = new FinalizationProcessor(scoring);
 
         await processor.process(
-            makeJob({ debateId: 'debate-1', roomId: 'room-1', closedAt: 0 }),
+            makeJob({ debateId: 'debate-1', closedAt: 0 }),
         );
 
         expect(scoring.computeFinalDebateScore).toHaveBeenCalledOnce();
@@ -43,7 +43,7 @@ describe('FinalizationProcessor', () => {
 
         await expect(
             processor.process(
-                makeJob({ debateId: 'debate-1', roomId: 'room-1', closedAt: 0 }),
+                makeJob({ debateId: 'debate-1', closedAt: 0 }),
             ),
         ).rejects.toThrow('FAILED_PRECONDITION');
     });

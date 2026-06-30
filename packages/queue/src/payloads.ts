@@ -6,7 +6,6 @@ export interface ReplayAnalysisJob {
 
 export interface FinalizationJob {
     debateId: string;
-    roomId: string;
     closedAt: number;
 }
 

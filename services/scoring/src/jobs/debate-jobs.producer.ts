@@ -21,10 +21,10 @@ export class DebateJobsProducer implements OnModuleDestroy {
         private readonly finalizationQueue: Queue<FinalizationJob>,
     ) {}
 
-    async enqueueFinalization(debateId: string, roomId: string): Promise<void> {
+    async enqueueFinalization(debateId: string): Promise<void> {
         await this.finalizationQueue.add(
             QUEUE_NAMES.FINALIZATION,
-            { debateId, roomId, closedAt: Date.now() },
+            { debateId, closedAt: Date.now() },
             {
                 ...DEFAULT_JOB_OPTIONS,
                 delay: FINALIZATION_DELAY_MS,

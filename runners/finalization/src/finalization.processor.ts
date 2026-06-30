@@ -7,8 +7,8 @@ import { ScoringClient } from './scoring-client.service';
 /**
  * Consumes `debate.finalize` jobs: asks the scoring service to compute and
  * persist the final debate score. gRPC errors are logged and re-thrown so
- * BullMQ applies the queue's retry policy — note a NOT/FAILED_PRECONDITION here
- * usually means the debate's AI analysis result has not been stored yet.
+ * BullMQ applies the queue's retry policy — note a NOT_FOUND/FAILED_PRECONDITION
+ * here usually means the debate's AI analysis result has not been stored yet.
  */
 @Injectable()
 export class FinalizationProcessor implements JobProcessor<FinalizationJob> {

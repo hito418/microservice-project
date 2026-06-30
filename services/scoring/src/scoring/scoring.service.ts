@@ -53,7 +53,7 @@ export class ScoringService {
         // The producer's jobId dedup is the real guard; this check just avoids
         // redundant enqueue calls on repeated upserts.
         if (request.status === 'VOTING' && previous?.status !== 'VOTING') {
-            await this.debateJobs.enqueueFinalization(request.debateId, '');
+            await this.debateJobs.enqueueFinalization(request.debateId);
         }
 
         return toResponse(debate);

@@ -1075,7 +1075,7 @@ describe('ScoringService debate upsert', () => {
         await service.upsertDebate({ debateId: 'debate-1', status: 'VOTING' });
 
         expect(producer.enqueueFinalization).toHaveBeenCalledOnce();
-        expect(producer.enqueueFinalization).toHaveBeenCalledWith('debate-1', '');
+        expect(producer.enqueueFinalization).toHaveBeenCalledWith('debate-1');
     });
 
     it('enqueues finalization for a brand-new debate created directly in VOTING', async () => {

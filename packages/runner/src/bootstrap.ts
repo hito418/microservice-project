@@ -59,9 +59,15 @@ export async function runWorker(
         if (shuttingDown) return;
         shuttingDown = true;
         logger.log(`Received ${signal}, draining worker...`);
-        await worker.close();
-        await app.close();
-        process.exit(0);
+        try {
+            await worker.close();
+            await app.close();
+        } catch (err) {
+            logger.error(
+                `Error during shutdown: ${err instanceof Error ? err.message : String(err)}`,
+            );
+            process.exitCode = 1;
+        }
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
     process.on('SIGINT', () => void shutdown('SIGINT'));
