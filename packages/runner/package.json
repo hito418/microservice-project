@@ -1,5 +1,5 @@
 {
-    "name": "@repo/queue",
+    "name": "@repo/runner",
     "version": "1.0.0",
     "private": true,
     "main": "dist/index.js",
@@ -12,13 +12,18 @@
         "dev": "tsc -b --watch",
         "typecheck": "tsc -b --noEmit"
     },
+    "dependencies": {
+        "@repo/common": "workspace:*",
+        "@repo/queue": "workspace:*"
+    },
     "peerDependencies": {
+        "@nestjs/common": "catalog:",
+        "@nestjs/core": "catalog:",
         "bullmq": "catalog:"
     },
-    "dependencies": {
-        "@repo/common": "workspace:*"
-    },
     "devDependencies": {
+        "@nestjs/common": "catalog:",
+        "@nestjs/core": "catalog:",
         "@repo/ts-config": "workspace:*",
         "@types/node": "^22.0.0",
         "bullmq": "catalog:",
