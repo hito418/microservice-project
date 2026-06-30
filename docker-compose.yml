@@ -1,4 +1,16 @@
 services:
+    web:
+        build:
+            context: .
+            dockerfile: apps/web/Dockerfile
+            args:
+                # Baked into the bundle at build time; the browser calls the
+                # gateway directly on its published host port.
+                VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000}
+        ports:
+            - 5173:80
+        depends_on:
+            - gateway
     gateway:
         build:
             context: .
@@ -12,7 +24,11 @@ services:
             - AUTH_GRPC_PORT=50051
             - PROFILE_GRPC_HOST=profile
             - PROFILE_GRPC_PORT=50053
+            - RANKING_GRPC_HOST=ranking
+            - RANKING_GRPC_PORT=50055
             - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
+            # Credentialed CORS allow-list for the browser client; comma-separated.
+            - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173}
             - JWT_PUBLIC_KEY_PATH=/app/.secrets/public.pem
             - JWT_ALGORITHM=${JWT_ALGORITHM:-ES256}
             - LOG_LEVEL=verbose
@@ -84,6 +100,10 @@ services:
             - AUTH_DB_USER=auth
             - AUTH_DB_PASSWORD=auth
             - AUTH_DB_NAME=auth
+            # Auth provisions a profile on signup over gRPC (reachable on the
+            # shared gateway network).
+            - PROFILE_GRPC_HOST=profile
+            - PROFILE_GRPC_PORT=50053
             - JWT_PRIVATE_KEY_PATH=/app/.secrets/private.pem
             - JWT_ALGORITHM=${JWT_ALGORITHM:-ES256}
             - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-3600}
@@ -179,6 +199,7 @@ services:
         networks:
             - debate-service
             - gateway
+            - queue
         depends_on:
             debate-db:
                 condition: service_healthy
@@ -202,6 +223,68 @@ services:
             - debate-service
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U debate -d debate"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
+    ranking:
+        build:
+            context: .
+            dockerfile: services/ranking/Dockerfile
+        environment:
+            - RANKING_GRPC_HOST=0.0.0.0
+            - RANKING_GRPC_PORT=50055
+            - RANKING_DB_HOST=ranking-db
+            - RANKING_DB_PORT=5432
+            - RANKING_DB_USER=ranking
+            - RANKING_DB_PASSWORD=ranking
+            - RANKING_DB_NAME=ranking
+            # Ranking aggregates final scores and profile data, fronted by a
+            # Redis cache, so it reaches scoring/profile over gRPC and Redis.
+            - SCORING_GRPC_HOST=scoring
+            - SCORING_GRPC_PORT=50052
+            - PROFILE_GRPC_HOST=profile
+            - PROFILE_GRPC_PORT=50053
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        networks:
+            # ranking-service → reach ranking-db; gateway → reach scoring/profile
+            # and be reached by the gateway; queue → reach redis.
+            - ranking-service
+            - gateway
+            - queue
+        depends_on:
+            ranking-db:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            scoring:
+                condition: service_started
+            profile:
+                condition: service_started
+        ports:
+            # Bind to localhost only: ranking trusts gateway-supplied identity
+            # metadata (x-user-id/x-user-role), so the gRPC port must not be
+            # reachable by arbitrary clients that could bypass the gateway and
+            # spoof a principal. Host 50054 → container 50055 avoids clashing
+            # with debate (also 50055 internally, bound to host 50055). In-cluster
+            # traffic uses ranking:50055 over the gateway network.
+            - 127.0.0.1:50054:50055
+    ranking-db:
+        image: postgres:16-alpine
+        environment:
+            - POSTGRES_USER=ranking
+            - POSTGRES_PASSWORD=ranking
+            - POSTGRES_DB=ranking
+        volumes:
+            - ranking-db-data:/var/lib/postgresql/data
+        ports:
+            # Host 5437 → container 5432: avoids clashing with auth-db (5433),
+            # scoring-db (5434), profile-db (5435) and debate-db (5436).
+            - 5437:5432
+        networks:
+            - ranking-service
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ranking -d ranking"]
             interval: 5s
             timeout: 3s
             retries: 5
@@ -248,11 +331,13 @@ volumes:
     scoring-db-data:
     profile-db-data:
     debate-db-data:
+    ranking-db-data:
 
 networks:
     auth-service:
     scoring-service:
     profile-service:
     debate-service:
+    ranking-service:
     gateway:
     queue:

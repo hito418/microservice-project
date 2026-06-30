@@ -6,6 +6,7 @@ import * as bcrypt from 'bcryptjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '../config/config.service';
 import type { UserRow } from '../db/database.types';
+import { ProfileClient } from '../profile/profile-client.service';
 import { UsersRepository } from '../users/users.repository';
 import { AuthService } from './auth.service';
 
@@ -14,6 +15,12 @@ function makeUsersRepoMock(): UsersRepository {
         findByEmail: vi.fn(),
         insert: vi.fn(),
     } as unknown as UsersRepository;
+}
+
+function makeProfileClientMock(): ProfileClient {
+    return {
+        createProfile: vi.fn().mockResolvedValue({}),
+    } as unknown as ProfileClient;
 }
 
 const JWT_TTL_SECONDS = 3600;
@@ -33,25 +40,33 @@ function makeConfigMock(): ConfigService {
     } as unknown as ConfigService;
 }
 
-function makeService(): { service: AuthService; users: UsersRepository; jwt: JwtService } {
+function makeService(): {
+    service: AuthService;
+    users: UsersRepository;
+    jwt: JwtService;
+    profile: ProfileClient;
+} {
     const users = makeUsersRepoMock();
+    const profile = makeProfileClientMock();
     const jwt = new JwtService({
         privateKey,
         publicKey,
         signOptions: { algorithm: 'ES256', expiresIn: `${JWT_TTL_SECONDS}s` },
     });
-    const service = new AuthService(users, jwt, makeConfigMock());
-    return { service, users, jwt };
+    const service = new AuthService(users, jwt, makeConfigMock(), profile);
+    return { service, users, jwt, profile };
 }
 
 describe('AuthService.signup', () => {
     let users: UsersRepository;
     let service: AuthService;
+    let profile: ProfileClient;
 
     beforeEach(() => {
         const built = makeService();
         users = built.users;
         service = built.service;
+        profile = built.profile;
     });
 
     it('hashes the password and persists a normalized email', async () => {
@@ -86,6 +101,52 @@ describe('AuthService.signup', () => {
         });
         expect(result).not.toHaveProperty('password_hash');
         expect(result).not.toHaveProperty('passwordHash');
+    });
+
+    it('provisions a profile for the new user, owned by the new principal', async () => {
+        vi.mocked(users.findByEmail).mockResolvedValue(undefined);
+        vi.mocked(users.insert).mockResolvedValue({
+            id: 'user-1',
+            email: 'alice@example.com',
+            password_hash: 'hash',
+            role: 'user',
+            created_at: new Date('2026-01-01T00:00:00Z'),
+            updated_at: new Date('2026-01-01T00:00:00Z'),
+        });
+
+        await service.signup({
+            email: '  Alice@Example.com ',
+            password: 'correct horse battery',
+        });
+
+        // displayName seeded from the email local-part; owner identity passed
+        // as the principal (becomes gRPC metadata), not in the request body.
+        expect(profile.createProfile).toHaveBeenCalledWith(
+            { displayName: 'alice' },
+            { id: 'user-1', role: 'user' },
+        );
+    });
+
+    it('still succeeds when profile provisioning fails (best-effort)', async () => {
+        vi.mocked(users.findByEmail).mockResolvedValue(undefined);
+        vi.mocked(users.insert).mockResolvedValue({
+            id: 'user-1',
+            email: 'alice@example.com',
+            password_hash: 'hash',
+            role: 'user',
+            created_at: new Date('2026-01-01T00:00:00Z'),
+            updated_at: new Date('2026-01-01T00:00:00Z'),
+        });
+        vi.mocked(profile.createProfile).mockRejectedValue(
+            new Error('profile service unavailable'),
+        );
+
+        const result = await service.signup({
+            email: 'alice@example.com',
+            password: 'correct horse battery',
+        });
+
+        expect(result.id).toBe('user-1');
     });
 
     it('rejects duplicate emails with RpcException(ALREADY_EXISTS)', async () => {

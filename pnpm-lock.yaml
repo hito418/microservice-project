@@ -440,6 +440,9 @@ importers:
       '@contracts/auth':
         specifier: workspace:*
         version: link:../../contracts/auth
+      '@contracts/profile':
+        specifier: workspace:*
+        version: link:../../contracts/profile
       '@grpc/grpc-js':
         specifier: 'catalog:'
         version: 1.14.3

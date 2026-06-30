@@ -36,6 +36,13 @@ export class ConfigService {
         return parseBool('AUTH_SKIP_MIGRATIONS', false);
     }
 
+    get profileGrpcHost(): string {
+        return process.env.PROFILE_GRPC_HOST ?? '127.0.0.1';
+    }
+    get profileGrpcPort(): number {
+        return parsePort('PROFILE_GRPC_PORT', 50053);
+    }
+
     private _jwtPrivateKey?: string;
     get jwtPrivateKey(): string {
         return (this._jwtPrivateKey ??= readJwtPrivateKey());

@@ -8,13 +8,26 @@ import { status } from '@grpc/grpc-js';
 import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RpcException } from '@nestjs/microservices';
+import { DISPLAY_NAME_MAX_LENGTH } from '@contracts/profile';
 import * as bcrypt from 'bcryptjs';
 import { UsersRepository } from '../users/users.repository';
 import { ConfigService } from '../config/config.service';
+import { ProfileClient } from '../profile/profile-client.service';
 
 const BCRYPT_ROUNDS = 12;
 const PG_UNIQUE_VIOLATION = '23505';
 const USERS_EMAIL_UNIQUE = 'users_email_unique';
+
+// New signups are always plain users; the column defaults to this too.
+const NEW_USER_ROLE = 'user';
+
+// Profiles require a non-empty display name (max DISPLAY_NAME_MAX_LENGTH). Seed
+// it from the email local-part; the user can rename later via the profile API.
+function deriveDisplayName(email: string): string {
+    const localPart = email.split('@')[0]?.trim();
+    const name = localPart && localPart.length > 0 ? localPart : email;
+    return name.slice(0, DISPLAY_NAME_MAX_LENGTH);
+}
 
 function isDuplicateEmail(err: unknown): boolean {
     if (typeof err !== 'object' || err === null) return false;
@@ -36,6 +49,7 @@ export class AuthService {
         private readonly jwt: JwtService,
         // Resolved JWT lifetime in seconds — must mirror what JwtModule signs with.
         private readonly config: ConfigService,
+        private readonly profile: ProfileClient,
     ) {}
 
     async signup({ email, password }: SignupRequest): Promise<SignupResponse> {
@@ -72,11 +86,34 @@ export class AuthService {
 
         this.logger.debug(`signup ok id=${saved.id} email=${saved.email}`);
 
+        // A user and their profile are 1:1, so provision the profile here.
+        // Best-effort by design: the user record is the source of truth for
+        // login and there's no cross-service transaction to roll it back, so a
+        // profile failure is logged loudly rather than stranding the account
+        // behind an error that re-signup can't get past (ALREADY_EXISTS).
+        await this.provisionProfile(saved.id, saved.email);
+
         return {
             id: saved.id,
             email: saved.email,
             createdAt: saved.created_at.toISOString(),
         };
+    }
+
+    private async provisionProfile(userId: string, email: string): Promise<void> {
+        try {
+            await this.profile.createProfile(
+                { displayName: deriveDisplayName(email) },
+                { id: userId, role: NEW_USER_ROLE },
+            );
+            this.logger.debug(`profile provisioned userId=${userId}`);
+        } catch (err) {
+            this.logger.error(
+                `profile provisioning failed userId=${userId} email=${email}; ` +
+                    'account exists but has no profile',
+                err instanceof Error ? err.stack : String(err),
+            );
+        }
     }
 
     async login({ email, password }: LoginRequest): Promise<LoginResponse> {
