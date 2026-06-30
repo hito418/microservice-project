@@ -4,7 +4,11 @@
     "description": "",
     "main": "index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "build": "turbo run build",
+        "lint": "turbo run lint",
+        "typecheck": "turbo run typecheck",
+        "test": "turbo run test",
+        "keys:gen": "node scripts/gen-jwt-keys.mjs"
     },
     "keywords": [],
     "author": "",
@@ -12,5 +16,10 @@
     "packageManager": "pnpm@10.33.2",
     "dependencies": {
         "turbo": "^2.9.6"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "grpc-tools"
+        ]
     }
 }

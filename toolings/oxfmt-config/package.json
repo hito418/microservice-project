@@ -1,0 +1,11 @@
+{
+    "name": "@repo/oxfmt-config",
+    "version": "1.0.0",
+    "private": true,
+    "files": [
+        "base.ts"
+    ],
+    "peerDependencies": {
+        "oxfmt": "catalog:"
+    }
+}

@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package debate.v1;
+
+service DebateService {
+    rpc CreateRoom (CreateRoomRequest) returns (RoomResponse);
+    rpc GetRoom (GetRoomRequest) returns (RoomResponse);
+    rpc Transition (TransitionRequest) returns (RoomResponse);
+    rpc JoinRoom (JoinRoomRequest) returns (RoomResponse);
+    rpc SendMessage (SendMessageRequest) returns (MessageResponse);
+    rpc GetReplay (GetReplayRequest) returns (ReplayResponse);
+}
+
+message CreateRoomRequest {
+    string debate_id = 1;
+}
+
+message GetRoomRequest {
+    string room_id = 1;
+}
+
+message TransitionRequest {
+    string room_id = 1;
+    // One of: PREPARATION, RUNNING, VOTING, CLOSED
+    string to = 2;
+}
+
+message JoinRoomRequest {
+    string room_id = 1;
+    // user_id comes from gRPC metadata
+}
+
+message SendMessageRequest {
+    string room_id = 1;
+    string content = 2;
+    // user_id comes from gRPC metadata
+}
+
+message GetReplayRequest {
+    string room_id = 1;
+}
+
+message ParticipantInfo {
+    string user_id = 1;
+    // One of: POUR, CONTRE
+    string side = 2;
+    string joined_at = 3;
+}
+
+message RoomResponse {
+    string id = 1;
+    string debate_id = 2;
+    // One of: PREPARATION, RUNNING, VOTING, CLOSED
+    string state = 3;
+    string question = 4;
+    repeated ParticipantInfo participants = 5;
+    string created_at = 6;
+    string updated_at = 7;
+}
+
+message MessageResponse {
+    string id = 1;
+    string room_id = 2;
+    string user_id = 3;
+    // One of: POUR, CONTRE
+    string side = 4;
+    string content = 5;
+    string sent_at = 6;
+}
+
+message TransitionRecord {
+    string from = 1;
+    string to = 2;
+    string at = 3;
+}
+
+message ReplayResponse {
+    string room_id = 1;
+    string debate_id = 2;
+    string state = 3;
+    string question = 4;
+    repeated ParticipantInfo participants = 5;
+    repeated MessageResponse messages = 6;
+    repeated TransitionRecord transitions = 7;
+}

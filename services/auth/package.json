@@ -1,0 +1,51 @@
+{
+    "name": "@services/auth",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/main.js",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "nest build",
+        "dev": "nest start --watch",
+        "start": "node dist/main.js",
+        "lint": "oxlint",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate"
+    },
+    "dependencies": {
+        "@contracts/auth": "workspace:*",
+        "@contracts/profile": "workspace:*",
+        "@grpc/grpc-js": "catalog:",
+        "@grpc/proto-loader": "catalog:",
+        "@nestjs/common": "catalog:",
+        "@nestjs/core": "catalog:",
+        "@nestjs/jwt": "catalog:",
+        "@nestjs/microservices": "catalog:",
+        "@repo/common": "workspace:*",
+        "bcryptjs": "catalog:",
+        "drizzle-orm": "catalog:",
+        "kysely": "catalog:",
+        "pg": "catalog:",
+        "reflect-metadata": "catalog:",
+        "rxjs": "catalog:",
+        "zod": "catalog:"
+    },
+    "devDependencies": {
+        "@nestjs/cli": "catalog:",
+        "@repo/oxfmt-config": "workspace:*",
+        "@repo/oxlint-config": "workspace:*",
+        "@repo/ts-config": "workspace:*",
+        "@types/bcryptjs": "^2.4.6",
+        "@types/node": "^22.0.0",
+        "@types/pg": "^8.11.10",
+        "drizzle-kit": "catalog:",
+        "oxfmt": "catalog:",
+        "oxlint": "catalog:",
+        "typescript": "catalog:",
+        "vitest": "catalog:"
+    }
+}

@@ -1,0 +1,32 @@
+{
+    "name": "@repo/runner",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch",
+        "typecheck": "tsc -b --noEmit"
+    },
+    "dependencies": {
+        "@repo/common": "workspace:*",
+        "@repo/queue": "workspace:*"
+    },
+    "peerDependencies": {
+        "@nestjs/common": "catalog:",
+        "@nestjs/core": "catalog:",
+        "bullmq": "catalog:"
+    },
+    "devDependencies": {
+        "@nestjs/common": "catalog:",
+        "@nestjs/core": "catalog:",
+        "@repo/ts-config": "workspace:*",
+        "@types/node": "^22.0.0",
+        "bullmq": "catalog:",
+        "typescript": "catalog:"
+    }
+}

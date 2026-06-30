@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package scoring.v1;
+
+service ScoringService {
+    rpc CreateSpectatorVote (CreateSpectatorVoteRequest) returns (SpectatorVoteResponse);
+    rpc GetAudienceVoteSummary (AudienceVoteSummaryRequest) returns (AudienceVoteSummaryResponse);
+    rpc StoreAiAnalysisResult (StoreAiAnalysisResultRequest) returns (AiAnalysisResultResponse);
+    rpc GetAiAnalysisResult (GetAiAnalysisResultRequest) returns (AiAnalysisResultResponse);
+    rpc ComputeFinalDebateScore (ComputeFinalDebateScoreRequest) returns (FinalDebateScoreResponse);
+    rpc GetFinalDebateScore (GetFinalDebateScoreRequest) returns (FinalDebateScoreResponse);
+    rpc GetRandomRecentDebateForVoting (GetRandomRecentDebateForVotingRequest) returns (RandomRecentDebateForVotingResponse);
+    rpc UpsertDebate (UpsertDebateRequest) returns (DebateResponse);
+}
+
+message CreateSpectatorVoteRequest {
+    string debate_id = 1;
+    // One of: FOR, AGAINST
+    string side = 2;
+    // The voter's identity travels out-of-band as gRPC metadata
+    // (see @repo/common/grpc user-metadata), not as a message field.
+}
+
+message SpectatorVoteResponse {
+    string id = 1;
+    string debate_id = 2;
+    string user_id = 3;
+    string side = 4;
+    // RFC 3339 / ISO 8601
+    string created_at = 5;
+}
+
+message AudienceVoteSummaryRequest {
+    string debate_id = 1;
+}
+
+message AudienceVoteSummaryResponse {
+    string debate_id = 1;
+    int32 total_votes = 2;
+    int32 for_votes = 3;
+    int32 against_votes = 4;
+    int32 for_score = 5;
+    int32 against_score = 6;
+}
+
+message StoreAiAnalysisResultRequest {
+    string debate_id = 1;
+    // One of: COMPLETED, FAILED
+    string status = 2;
+    optional string summary = 3;
+    optional int32 for_score = 4;
+    optional int32 against_score = 5;
+    optional string for_feedback = 6;
+    optional string against_feedback = 7;
+    optional string error_message = 8;
+}
+
+message GetAiAnalysisResultRequest {
+    string debate_id = 1;
+}
+
+message AiAnalysisResultResponse {
+    string debate_id = 1;
+    string status = 2;
+    optional string summary = 3;
+    optional int32 for_score = 4;
+    optional int32 against_score = 5;
+    optional string for_feedback = 6;
+    optional string against_feedback = 7;
+    optional string error_message = 8;
+    // RFC 3339 / ISO 8601
+    string created_at = 9;
+    // RFC 3339 / ISO 8601
+    string updated_at = 10;
+}
+
+message ComputeFinalDebateScoreRequest {
+    string debate_id = 1;
+}
+
+message GetFinalDebateScoreRequest {
+    string debate_id = 1;
+}
+
+message FinalDebateScoreResponse {
+    string debate_id = 1;
+    int32 ai_for_score = 2;
+    int32 ai_against_score = 3;
+    int32 audience_for_score = 4;
+    int32 audience_against_score = 5;
+    int32 final_for_score = 6;
+    int32 final_against_score = 7;
+    // One of: FOR, AGAINST, DRAW
+    string winner_side = 8;
+    // RFC 3339 / ISO 8601
+    string created_at = 9;
+    // RFC 3339 / ISO 8601
+    string updated_at = 10;
+}
+
+message GetRandomRecentDebateForVotingRequest {
+    optional int32 max_age_minutes = 1;
+    optional int32 candidate_pool_size = 2;
+}
+
+message RandomRecentDebateForVotingResponse {
+    string debate_id = 1;
+    string status = 2;
+    int32 vote_count = 3;
+    // RFC 3339 / ISO 8601.
+    // Temporary approximation based on debates.updated_at until debate lifecycle
+    // exposes a dedicated voting_started_at / finished_at timestamp.
+    string reference_time = 4;
+}
+
+message UpsertDebateRequest {
+    string debate_id = 1;
+    // One of: PENDING, RUNNING, VOTING, CLOSED
+    string status = 2;
+}
+
+message DebateResponse {
+    string id = 1;
+    string status = 2;
+}

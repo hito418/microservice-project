@@ -1,0 +1,168 @@
+{
+  "id": "5804a971-6fd7-40fa-aec0-0bd77ee13254",
+  "prevId": "65bbba63-c56f-4181-9244-34f237d4cf48",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.player_stats": {
+      "name": "player_stats",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "xp": {
+          "name": "xp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "elo": {
+          "name": "elo",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1000
+        },
+        "debates_count": {
+          "name": "debates_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "wins": {
+          "name": "wins",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "losses": {
+          "name": "losses",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "draws": {
+          "name": "draws",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "player_stats_xp_check": {
+          "name": "player_stats_xp_check",
+          "value": "\"player_stats\".\"xp\" >= 0"
+        },
+        "player_stats_elo_check": {
+          "name": "player_stats_elo_check",
+          "value": "\"player_stats\".\"elo\" >= 0"
+        },
+        "player_stats_debates_count_check": {
+          "name": "player_stats_debates_count_check",
+          "value": "\"player_stats\".\"debates_count\" >= 0"
+        },
+        "player_stats_wins_check": {
+          "name": "player_stats_wins_check",
+          "value": "\"player_stats\".\"wins\" >= 0"
+        },
+        "player_stats_losses_check": {
+          "name": "player_stats_losses_check",
+          "value": "\"player_stats\".\"losses\" >= 0"
+        },
+        "player_stats_draws_check": {
+          "name": "player_stats_draws_check",
+          "value": "\"player_stats\".\"draws\" >= 0"
+        },
+        "player_stats_counts_total_check": {
+          "name": "player_stats_counts_total_check",
+          "value": "\"player_stats\".\"debates_count\" = \"player_stats\".\"wins\" + \"player_stats\".\"losses\" + \"player_stats\".\"draws\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.profiles": {
+      "name": "profiles",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "varchar(2048)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

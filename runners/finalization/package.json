@@ -1,0 +1,42 @@
+{
+    "name": "@runners/finalization",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/main.js",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "nest build",
+        "dev": "nest build --watch",
+        "start": "node dist/main.js",
+        "lint": "oxlint",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@contracts/scoring": "workspace:*",
+        "@grpc/grpc-js": "catalog:",
+        "@grpc/proto-loader": "catalog:",
+        "@nestjs/common": "catalog:",
+        "@nestjs/core": "catalog:",
+        "@nestjs/microservices": "catalog:",
+        "@repo/common": "workspace:*",
+        "@repo/queue": "workspace:*",
+        "@repo/runner": "workspace:*",
+        "bullmq": "catalog:",
+        "reflect-metadata": "catalog:",
+        "rxjs": "catalog:"
+    },
+    "devDependencies": {
+        "@repo/ts-config": "workspace:*",
+        "@repo/oxfmt-config": "workspace:*",
+        "@repo/oxlint-config": "workspace:*",
+        "@types/node": "^22.0.0",
+        "@nestjs/cli": "catalog:",
+        "typescript": "catalog:",
+        "oxlint": "catalog:",
+        "oxfmt": "catalog:",
+        "vitest": "catalog:"
+    }
+}

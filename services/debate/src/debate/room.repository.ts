@@ -1,0 +1,108 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { Kysely, sql } from 'kysely';
+import { KYSELY } from '../db/database.module';
+import type { Database, MessageRow, ParticipantRow, QuestionRow, RoomRow, RoomTransitionRow } from '../db/database.types';
+
+@Injectable()
+export class RoomRepository {
+    constructor(@Inject(KYSELY) private readonly db: Kysely<Database>) {}
+
+    findById(roomId: string): Promise<RoomRow | undefined> {
+        return this.db
+            .selectFrom('rooms')
+            .selectAll()
+            .where('id', '=', roomId)
+            .executeTakeFirst();
+    }
+
+    async create(debateId: string): Promise<RoomRow> {
+        return this.db
+            .insertInto('rooms')
+            .values({ debate_id: debateId })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    }
+
+    async transitionState(roomId: string, fromState: string, toState: string): Promise<RoomRow> {
+        return this.db.transaction().execute(async (trx) => {
+            await trx
+                .insertInto('room_transitions')
+                .values({ room_id: roomId, from_state: fromState, to_state: toState })
+                .execute();
+            return trx
+                .updateTable('rooms')
+                .set({ state: toState, updated_at: sql`now()` })
+                .where('id', '=', roomId)
+                .returningAll()
+                .executeTakeFirstOrThrow();
+        });
+    }
+
+    randomQuestion(): Promise<QuestionRow | undefined> {
+        return this.db
+            .selectFrom('questions')
+            .selectAll()
+            .orderBy(sql`random()`)
+            .limit(1)
+            .executeTakeFirst();
+    }
+
+    getQuestionById(questionId: string): Promise<QuestionRow | undefined> {
+        return this.db
+            .selectFrom('questions')
+            .selectAll()
+            .where('id', '=', questionId)
+            .executeTakeFirst();
+    }
+
+    async setQuestion(roomId: string, questionId: string): Promise<void> {
+        await this.db
+            .updateTable('rooms')
+            .set({ question_id: questionId, updated_at: sql`now()` })
+            .where('id', '=', roomId)
+            .execute();
+    }
+
+    getParticipants(roomId: string): Promise<ParticipantRow[]> {
+        return this.db
+            .selectFrom('participants')
+            .selectAll()
+            .where('room_id', '=', roomId)
+            .orderBy('joined_at', 'asc')
+            .execute();
+    }
+
+    async addParticipant(roomId: string, userId: string, side: string): Promise<ParticipantRow> {
+        return this.db
+            .insertInto('participants')
+            .values({ room_id: roomId, user_id: userId, side })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    }
+
+    async saveMessage(roomId: string, userId: string, content: string): Promise<MessageRow> {
+        return this.db
+            .insertInto('messages')
+            .values({ room_id: roomId, user_id: userId, content })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    }
+
+    getMessages(roomId: string): Promise<MessageRow[]> {
+        return this.db
+            .selectFrom('messages')
+            .selectAll()
+            .where('room_id', '=', roomId)
+            .orderBy('sent_at', 'asc')
+            .execute();
+    }
+
+    getTransitions(roomId: string): Promise<RoomTransitionRow[]> {
+        return this.db
+            .selectFrom('room_transitions')
+            .selectAll()
+            .where('room_id', '=', roomId)
+            .orderBy('transitioned_at', 'asc')
+            .execute();
+    }
+}

@@ -9,21 +9,39 @@
     "scripts": {
         "build": "nest build",
         "dev": "nest build --watch",
-        "start": "node dist/main.js"
+        "start": "node dist/main.js",
+        "lint": "oxlint",
+        "typecheck": "tsc --noEmit",
+        "test": "nest build && node --test \"dist/**/*.spec.js\""
     },
     "dependencies": {
-        "@nestjs/common": "^11.0.0",
-        "@nestjs/core": "^11.0.0",
-        "@nestjs/microservices": "^11.0.0",
-        "@nestjs/platform-fastify": "^11.0.0",
-        "reflect-metadata": "^0.2.2",
-        "rxjs": "^7.8.1"
+        "@contracts/auth": "workspace:*",
+        "@contracts/profile": "workspace:*",
+        "@contracts/ranking": "workspace:*",
+        "@contracts/realtime": "workspace:*",
+        "@contracts/scoring": "workspace:*",
+        "@fastify/cookie": "^11.0.0",
+        "fastify": "^5.0.0",
+        "@grpc/grpc-js": "catalog:",
+        "@grpc/proto-loader": "catalog:",
+        "@nestjs/common": "catalog:",
+        "@nestjs/core": "catalog:",
+        "@nestjs/jwt": "catalog:",
+        "@nestjs/microservices": "catalog:",
+        "@nestjs/platform-fastify": "catalog:",
+        "@repo/common": "workspace:*",
+        "reflect-metadata": "catalog:",
+        "rxjs": "catalog:",
+        "zod": "catalog:"
     },
     "devDependencies": {
         "@repo/ts-config": "workspace:*",
+        "@repo/oxfmt-config": "workspace:*",
+        "@repo/oxlint-config": "workspace:*",
         "@types/node": "^22.0.0",
-        "ts-node-dev": "^2.0.0",
-        "@nestjs/cli": "11.0.21",
-        "typescript": "catalog:"
+        "@nestjs/cli": "catalog:",
+        "typescript": "catalog:",
+        "oxlint": "catalog:",
+        "oxfmt": "catalog:"
     }
 }

@@ -1,0 +1,33 @@
+{
+    "name": "@contracts/profile",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist",
+        "proto"
+    ],
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch",
+        "typecheck": "tsc -b --noEmit",
+        "proto:gen": "mkdir -p ./src/generated && grpc_tools_node_protoc --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/generated --ts_proto_opt=nestJs=true,addNestjsRestParameter=true,outputEncodeMethods=false,outputJsonMethods=false,outputPartialMethods=false,esModuleInterop=true --proto_path=./proto ./proto/profile.proto"
+    },
+    "dependencies": {
+        "zod": "catalog:"
+    },
+    "peerDependencies": {
+        "@nestjs/microservices": "catalog:",
+        "rxjs": "catalog:"
+    },
+    "devDependencies": {
+        "@nestjs/microservices": "catalog:",
+        "@repo/ts-config": "workspace:*",
+        "@types/node": "^22.0.0",
+        "grpc-tools": "catalog:",
+        "rxjs": "catalog:",
+        "ts-proto": "catalog:",
+        "typescript": "catalog:"
+    }
+}

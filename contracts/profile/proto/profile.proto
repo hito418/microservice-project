@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package profile.v1;
+
+// Profiles are 1:1 with users. Profile ownership for Create/Update/Delete is
+// identified by the authenticated principal that travels out-of-band as gRPC
+// metadata (see @repo/common/grpc user-metadata). Public/profile read RPCs and
+// internal player-stats RPCs carry the target user_id explicitly.
+service ProfileService {
+    rpc CreateProfile (CreateProfileRequest) returns (ProfileResponse);
+    rpc GetProfile (GetProfileRequest) returns (ProfileResponse);
+    rpc UpdateProfile (UpdateProfileRequest) returns (ProfileResponse);
+    rpc DeleteProfile (DeleteProfileRequest) returns (DeleteProfileResponse);
+    rpc GetPlayerStats (GetPlayerStatsRequest) returns (PlayerStatsResponse);
+    rpc UpsertPlayerStats (UpsertPlayerStatsRequest) returns (PlayerStatsResponse);
+    rpc ApplyPlayerStatsDelta (ApplyPlayerStatsDeltaRequest) returns (PlayerStatsResponse);
+    rpc ListTopPlayerStats (ListTopPlayerStatsRequest) returns (ListTopPlayerStatsResponse);
+}
+
+message ProfileResponse {
+    string user_id = 1;
+    string display_name = 2;
+    optional string avatar_url = 3;
+    // RFC 3339 / ISO 8601
+    string created_at = 4;
+    // RFC 3339 / ISO 8601
+    string updated_at = 5;
+}
+
+// Creates the caller's own profile. Owner = authenticated principal (metadata).
+message CreateProfileRequest {
+    string display_name = 1;
+    optional string avatar_url = 2;
+}
+
+message GetProfileRequest {
+    string user_id = 1;
+}
+
+// Updates the caller's own profile. Owner = authenticated principal (metadata).
+// Absent fields are left unchanged; an empty avatar_url clears it.
+message UpdateProfileRequest {
+    optional string display_name = 1;
+    optional string avatar_url = 2;
+}
+
+// Deletes the caller's own profile. Owner = authenticated principal (metadata).
+message DeleteProfileRequest {}
+
+message DeleteProfileResponse {
+    string user_id = 1;
+}
+
+message GetPlayerStatsRequest {
+    string user_id = 1;
+}
+
+message UpsertPlayerStatsRequest {
+    string user_id = 1;
+    int32 xp = 2;
+    int32 elo = 3;
+    int32 debates_count = 4;
+    int32 wins = 5;
+    int32 losses = 6;
+    int32 draws = 7;
+}
+
+message ApplyPlayerStatsDeltaRequest {
+    string user_id = 1;
+    int32 xp_delta = 2;
+    int32 elo_delta = 3;
+    // One of: WIN, LOSS, DRAW
+    string result = 4;
+}
+
+message PlayerStatsResponse {
+    string user_id = 1;
+    int32 xp = 2;
+    int32 elo = 3;
+    int32 debates_count = 4;
+    int32 wins = 5;
+    int32 losses = 6;
+    int32 draws = 7;
+    // Derived as round((wins / debates_count) * 100), or 0 if debates_count is 0.
+    int32 winrate = 8;
+    // RFC 3339 / ISO 8601
+    string created_at = 9;
+    // RFC 3339 / ISO 8601
+    string updated_at = 10;
+    // Derived from elo. One of: BRONZE, SILVER, GOLD, PLATINUM, DIAMOND, MASTER.
+    string rank_tier = 11;
+}
+
+message ListTopPlayerStatsRequest {
+    optional int32 limit = 1;
+}
+
+message ListTopPlayerStatsResponse {
+    repeated PlayerStatsResponse items = 1;
+}
