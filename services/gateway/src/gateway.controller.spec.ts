@@ -24,6 +24,8 @@ import type {
     ProfileServiceClient,
 } from '@contracts/profile';
 import type {
+    GetLeaderboardRequest,
+    GetLeaderboardResponse,
     ListUserPerformanceHistoryRequest,
     ListUserPerformanceHistoryResponse,
     RankingServiceClient,
@@ -52,6 +54,7 @@ interface CreateControllerOptions {
     onPerformanceHistory?: (
         request: ListUserPerformanceHistoryRequest,
     ) => ListUserPerformanceHistoryResponse;
+    onLeaderboard?: (request: GetLeaderboardRequest) => GetLeaderboardResponse;
     realtime?: RealtimeStub;
 }
 
@@ -73,9 +76,11 @@ function createProfileClient(
 function createRankingClient(
     listUserPerformanceHistory: RankingServiceClient['listUserPerformanceHistory'] =
         () => of({ items: [], total: 0 }),
+    getLeaderboard: RankingServiceClient['getLeaderboard'] = () =>
+        of({ items: [] }),
 ): ClientGrpc {
     return {
-        getService: () => ({ listUserPerformanceHistory }),
+        getService: () => ({ listUserPerformanceHistory, getLeaderboard }),
     } as unknown as ClientGrpc;
 }
 
@@ -140,6 +145,7 @@ function createController(
         items: [],
         total: 0,
     }));
+    const onLeaderboard = options.onLeaderboard ?? (() => ({ items: [] }));
     const realtime = options.realtime ?? createRealtimeStub();
     const scoring: Pick<
         ScoringServiceClient,
@@ -165,8 +171,12 @@ function createController(
     const profileClient = {
         getService: () => profile,
     } as unknown as ClientGrpc;
-    const ranking: Pick<RankingServiceClient, 'listUserPerformanceHistory'> = {
+    const ranking: Pick<
+        RankingServiceClient,
+        'listUserPerformanceHistory' | 'getLeaderboard'
+    > = {
         listUserPerformanceHistory: (request) => of(onPerformanceHistory(request)),
+        getLeaderboard: (request) => of(onLeaderboard(request)),
     };
     const rankingClient = {
         getService: () => ranking,
@@ -825,5 +835,59 @@ describe('GatewayController performance history', () => {
             () => controller.listUserPerformanceHistory('not-a-uuid'),
             BadRequestException,
         );
+    });
+});
+
+describe('GatewayController leaderboard', () => {
+    it('passes limit to ranking and returns the leaderboard', async () => {
+        let received: GetLeaderboardRequest | undefined;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onLeaderboard: (request) => {
+                    received = request;
+                    return {
+                        items: [
+                            {
+                                userId: '11111111-1111-1111-1111-111111111111',
+                                elo: 1600,
+                                xp: 700,
+                                rankTier: 'PLATINUM',
+                                winrate: 80,
+                                debatesCount: 5,
+                                wins: 4,
+                                losses: 1,
+                                draws: 0,
+                                rankPosition: 1,
+                            },
+                        ],
+                    };
+                },
+            },
+        );
+
+        const result = await controller.getLeaderboard('25');
+
+        assert.deepEqual(received, { limit: 25 });
+        assert.equal(result.items[0]?.rankPosition, 1);
+    });
+
+    it('rejects non-integer leaderboard limit before calling ranking', async () => {
+        let rankingCalled = false;
+        const controller = createController(
+            () => ({} as SpectatorVoteResponse),
+            {
+                onLeaderboard: () => {
+                    rankingCalled = true;
+                    return { items: [] };
+                },
+            },
+        );
+
+        await assert.rejects(
+            () => controller.getLeaderboard('abc'),
+            BadRequestException,
+        );
+        assert.equal(rankingCalled, false);
     });
 });

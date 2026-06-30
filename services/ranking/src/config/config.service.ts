@@ -43,6 +43,16 @@ export class ConfigService {
         return parsePort('PROFILE_GRPC_PORT', 50053);
     }
 
+    get redisHost(): string {
+        return process.env.REDIS_HOST ?? '127.0.0.1';
+    }
+    get redisPort(): number {
+        return parsePort('REDIS_PORT', 6379);
+    }
+    get redisPassword(): string | undefined {
+        return process.env.REDIS_PASSWORD || undefined;
+    }
+
     get logLevels(): LogLevel[] {
         return resolveLogLevels();
     }

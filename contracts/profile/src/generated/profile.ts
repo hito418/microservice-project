@@ -89,6 +89,14 @@ export interface PlayerStatsResponse {
   rankTier: string;
 }
 
+export interface ListTopPlayerStatsRequest {
+  limit?: number | undefined;
+}
+
+export interface ListTopPlayerStatsResponse {
+  items: PlayerStatsResponse[];
+}
+
 export const PROFILE_V1_PACKAGE_NAME = "profile.v1";
 
 /**
@@ -115,6 +123,8 @@ export interface ProfileServiceClient {
     request: ApplyPlayerStatsDeltaRequest,
     ...rest: any
   ): Observable<PlayerStatsResponse>;
+
+  listTopPlayerStats(request: ListTopPlayerStatsRequest, ...rest: any): Observable<ListTopPlayerStatsResponse>;
 }
 
 /**
@@ -159,6 +169,11 @@ export interface ProfileServiceController {
     request: ApplyPlayerStatsDeltaRequest,
     ...rest: any
   ): Promise<PlayerStatsResponse> | Observable<PlayerStatsResponse> | PlayerStatsResponse;
+
+  listTopPlayerStats(
+    request: ListTopPlayerStatsRequest,
+    ...rest: any
+  ): Promise<ListTopPlayerStatsResponse> | Observable<ListTopPlayerStatsResponse> | ListTopPlayerStatsResponse;
 }
 
 export function ProfileServiceControllerMethods() {
@@ -171,6 +186,7 @@ export function ProfileServiceControllerMethods() {
       "getPlayerStats",
       "upsertPlayerStats",
       "applyPlayerStatsDelta",
+      "listTopPlayerStats",
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);

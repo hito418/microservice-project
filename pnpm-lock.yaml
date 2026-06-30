@@ -544,6 +544,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.36.4(@types/pg@8.20.0)(kysely@0.27.6)(pg@8.21.0)
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
       kysely:
         specifier: 'catalog:'
         version: 0.27.6
