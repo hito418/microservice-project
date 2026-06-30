@@ -7,6 +7,7 @@ dist/
 .turbo/
 .claude/
 .secrets/
+generated/
 
 # Devenv
 .devenv*
